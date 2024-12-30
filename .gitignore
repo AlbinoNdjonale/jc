@@ -1,0 +1,8 @@
+requests.http
+.env
+routes/
+templates/
+static/
+db/
+rengoku.jpg
+obito.png
