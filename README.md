@@ -1,5 +1,9 @@
 # JC
 
+**autor**: Albino Ndjonale &lt;albinondjonale1@gmail.com&gt;
+<br>
+**versão**: 1.0.0
+
 Jc é framework web feito em php, que visa ser facil e simples de compreender.
 
 ## Para iniciar um projecto
