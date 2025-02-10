@@ -1,8 +1,11 @@
 <?php
     namespace jc\util;
 
-    use jc\qbuilder\QBuilder;
     use DateTime;
+    use jc\qbuilder\QBuilder;
+    use jc\response\JSONResponse;
+    use jc\response\RedirectResponse;
+    use jc\response\Render;
 
     function db() {
         return new QBuilder(
@@ -90,6 +93,63 @@
             }
 
             return [count($messages) == 0, $messages];
+        }
+
+        public static function login(array $data, $validat, $templa_tename = '') {
+            $is_valid = Util::is_valid(
+                $data,
+                [
+                    'password' => 'required|string|minlength-8',
+                    'email_or_username' => 'required|string'
+                ]
+            );
+
+            if (!$is_valid[0]) {
+                if (!$templa_tename) return new JSONResponse($is_valid[1], 400);
+
+                return new Render($templa_tename, [
+                    'error' => $is_valid[1]
+                ], 400);
+            }   
+            
+            $db = db();
+
+            $email_or_username = $data['email_or_username'];
+            $password = $data['password'];
+
+            $re_email = "/^[a-z0-9]+@[a-z]+\.[a-z]+[a-z\.]*[^\.]$/";
+
+            $attr = match ((bool) preg_match($re_email, $email_or_username)) {
+                true  => 'email',
+                false => 'username',
+            };
+
+            $user = $db->table('user')
+                ->select()
+                ->where('password = \''.hash('sha256', $password.getenv('SECRETKEY')).'\'')
+                ->and_where("$attr = ".QBuilder::prepare($email_or_username))
+                ->query()
+                ->first();
+
+            $db->close();
+
+            if (!$user) {
+                if (!$templa_tename) return new JSONResponse([
+                    'detail' => 'credential invalids'
+                ], 403);
+
+                return new Render($templa_tename, [
+                    'error' => 'credential invalids'
+                ], 403);
+            }
+                    
+            $auth = Util::authenticated($user['id'], !$templa_tename, $validat);
+
+            if (!$templa_tename)
+                return new JSONResponse($auth);
+
+            $next = $data['_next'];
+            return new RedirectResponse($next);
         }
 
         public static function authenticated(string|int $iduser, bool $api = true, int|bool $validat = 2) {

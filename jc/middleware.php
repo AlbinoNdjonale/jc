@@ -1,6 +1,7 @@
 <?php
     namespace jc\middleware;
 
+    use DateTime;
     use jc\qbuilder\QBuilder;
     use jc\response\JSONResponse;
     use jc\response\RedirectResponse;
@@ -173,22 +174,37 @@
             return function(callable $view) {
                 return function($request) use ($view) {
                     $tokeninvalid = false;
-                    if (isset($request['COOKIE']['token'])) {
+
+                    Render::add_var("user", [
+                        'is_active' => 0
+                    ]);
+
+                    if (isset($request['COOKIE']['token']) || isset($request['HEADERS']['authorization'])) {
                         $db = db();
 
-                        $token = $db->table('token')->select()->where('content = '.QBuilder::prepare($request['COOKIE']['token']))->query()->first();
+                        $token = $request['COOKIE']['token'] ?? $request['HEADERS']['authorization'];
 
+                        $token = $db->table('token')->select()->where('content = '.QBuilder::prepare($token))->query()->first();
+                        
                         if ($token) {
-                            $user = $db->table('user')->select()->where('id = '.$token['user'])->query()->first();
+                            if ((new DateTime()) >= (new DateTime($token['valid_until']))) {
+                                Render::add_var("user", [
+                                    'is_active' => 0
+                                ]);
+                            } else {
+                                $user = $db->table('user')->select()->where('id = '.$token['user'])->query()->first();
 
-                            Render::add_var("user", $user);
-                            Util::set_user($user);
+                                Render::add_var("user", $user);
+                                Util::set_user($user);
+                            }
                         } else {
                             $tokeninvalid = true;
                             Render::add_var("user", [
                                 'is_active' => 0
                             ]);
                         }
+
+                        $db->close();
                     }
 
                     $response = $view($request);
@@ -202,12 +218,19 @@
             };
         }
 
-        public static function login_required($url_login = null) {
+        public static function login_required($url_login = false) {
             return function($view) use ($url_login) {
                 return function($request) use ($view, $url_login) {
                     $user = Util::get_user();
 
-                    if (!$user) return new RedirectResponse($url_login ?? getenv('URL').getenv('URLLOGIN'));
+                    if (!$user) {
+                        if (is_null($url_login))
+                            return new JSONResponse([
+                                'detail' => 'Unauthorized Error'
+                            ], 401);
+                        else
+                            return new RedirectResponse($url_login ? $url_login : getenv('URL').getenv('URLLOGIN'));
+                    }
 
                     return $view($request);
                 };
