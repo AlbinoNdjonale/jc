@@ -197,7 +197,7 @@
                         $response->remove_cookie('token');
                     }
 
-                    return $response;  
+                    return $response;
                 };
             };
         }
@@ -219,11 +219,14 @@
                 return function($request) use ($view) {
                     $response = $view($request);
 
+                    if ($response instanceof Response)
+                        return $response;
+
                     if (is_array($response)) {
                         if (is_array($response[0]))
-                            $response = new JSONResponse($response[0], $response[1] ?? 200);
+                            $response = new JSONResponse($response[0], $response[1] ?? null);
                         else
-                            $response = new Response($response[0], $response[1] ?? 200);
+                            $response = new Response($response[0], $response[1] ?? null);
 
                         return $response;
                     }

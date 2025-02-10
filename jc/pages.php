@@ -25,7 +25,6 @@
 
                 $is_valid = Util::is_valid(
                     $request['POST'],
-                        
                     [
                         'password' => 'required|string|minlength-8',
                         'email_or_username' => 'required|string'
@@ -61,7 +60,7 @@
                         'error' => 'credential invalids'
                     ], 403);
                     
-                Util::authenticated($user['id'], false);
+                Util::authenticated($user['id'], false, false);
 
                 $next = $request['POST']['_next'];
                 return new RedirectResponse($next);

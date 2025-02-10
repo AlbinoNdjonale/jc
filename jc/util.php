@@ -18,7 +18,7 @@
     class Util {
         protected static $user = null;
 
-        public static function create_user($params) {
+        public static function create_user(array $params) {
             $is_valid = self::is_valid($params, [
                 'username' => 'string|required',
                 'email' => 'is_email|required',
@@ -53,7 +53,7 @@
             return $is_valid;
         }
 
-        public static function set_user($user) {
+        public static function set_user(array $user) {
             self::$user = $user;
         }
 
@@ -61,7 +61,7 @@
             return self::$user;
         }
 
-        public static function is_valid($values, $cond) {
+        public static function is_valid(array $values, array $cond) {
             $messages = [];
 
             foreach ($cond as $key => $value) {
@@ -92,10 +92,34 @@
             return [count($messages) == 0, $messages];
         }
 
-        public static function authenticated($iduser, $validat = 2) {
-            if (!$validat && Util::get_user()) return null;
-            
+        public static function authenticated(string|int $iduser, bool $api = true, int|bool $validat = 2) {
             $db = db();
+            
+            if (Util::get_user()) {
+                if (!$api && Util::get_user()['id'] === $iduser) {
+                    $db->close();
+
+                    return null;
+                } else if ($api && Util::get_user()['id'] === $iduser) {
+                    $token = $db->table('token')->select()->where("content = '".$_COOKIE['token']."'")->query()->first();
+                    $tokenrestart = $db->table('token_restart')->select()->where('token = '.$token['id'])->query()->first();
+                    
+                    $db->close();
+
+                    return [
+                        'token' => $token['content'],
+                        'token_restart' => $tokenrestart['content']
+                    ];
+                } else {
+                    $token = $_COOKIE['token'];
+
+                    $db->table('token')->delete()->where('content = '.QBuilder::prepare($token))->execute();
+
+                    $db->table('user')->update([
+                        'is_active' => 0
+                    ])->where('id = \''.Util::get_user()['id'].'\'')->execute();
+                }
+            } 
 
             $date = new DateTime();
 
@@ -125,13 +149,19 @@
                     'content' => $tokenrestart,
                     'valid_until' => $date->modify("+96 hour")->format('Y-m-d H:i:s')
                 ])->execute();
+            }
+            
+            if ($api) {
+                $response = [
+                    'token' => $token['content']
+                ];
+
+                if ($validat)
+                    $response['token_restart'] = $tokenrestart;
 
                 $db->close();
 
-                return [
-                    'token' => $token['content'],
-                    'token_restart' => $tokenrestart
-                ];
+                return $response;
             }
 
             setcookie('token', $token['content'], 0, '/');
