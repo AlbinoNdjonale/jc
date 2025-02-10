@@ -7,6 +7,7 @@
     require __DIR__.'/middleware.php';
 
     use Exception;
+    use jc\middleware\Middleware;
 
     $template_folder_default = '';
     $static_folder_default = '';
@@ -67,13 +68,15 @@
         </html>
     ';
 
-    /**
-     * subindo as variaveis de ambiente
-     */
+    // increasing environment variables
     if (file_exists('.env'))
         foreach (file('.env') as $line) {
-            $split = explode('=', $line);
-            putenv(trim($split[0]).'='.trim($split[1]));
+            if (empty(trim($line)) || str_starts_with($line, '#')) continue;
+            
+            $split = explode('=', $line, 2);
+
+            if (count($split) == 2)
+                putenv(trim($split[0]).'='.trim($split[1]));
         }
 
     $BASEURL  = getenv('URL');
@@ -179,6 +182,8 @@
 
             $static_folder_default = $static_folder;
             $template_folder_default = $template_folder;
+
+            $this->add_middleware(Middleware::adaptresponse());
         }
 
         public function run() {
@@ -230,33 +235,26 @@
             $stop = false;
 
             if (getenv('DEV') != 'false' && count($this->routes) == 0) {
-                $this->routes = [
-                    [
-                        'path'          => '/',
-                        'methods'       => ['GET'],
-                        'view'          => function($request) {
-                            global $basehtml;
-                            return str_replace(
-                                [
-                                    '{{title}}',
-                                    '{{content}}',
-                                    'color: #111',
-                                    'background: #555'
-                                ],
+                $this->get('/', [], function() {
+                    global $basehtml;
+                    return str_replace(
+                        [
+                            '{{title}}',
+                            '{{content}}',
+                            'color: #111',
+                            'background: #555'
+                        ],
 
-                                [
-                                    'JcApp',
-                                    '<h2>WELCOME TO JC</h2><p>Use this framework to develop web sites fast</p>',
-                                    'color: #f00',
-                                    'background: #111'
-                                ],
-                                
-                                $basehtml
-                            );
-                        },
-                        'response_code' => 200
-                    ]
-                ];
+                        [
+                            'JcApp',
+                            '<h2>WELCOME TO JC</h2><p>Use this framework to develop web sites fast</p>',
+                            'color: #f00',
+                            'background: #111'
+                        ],
+                        
+                        $basehtml
+                    );
+                });
             }
 
             foreach ($this->routes as $nameroute => $route) {
@@ -267,6 +265,14 @@
                     if ($variables = $this->urlComp($PREFIX.$path, $URI)) {
                         if ($variables == 1) $variables = [];
                         $NOTFOUND = false;
+
+                        // adjusting request methods
+                        if ($METHOD == 'POST') {
+                            if (isset($_POST['_method'])) {
+                                $METHOD = strtoupper($_POST['_method']);
+                                unset($_POST['_method']);
+                            }
+                        }
                         
                         if (!in_array($METHOD, $route["methods"])) {
                             continue;
@@ -275,12 +281,13 @@
                         $NOMETHOD = false;
 
                         $request = [
-                            'GET'      => $variables,
-                            'POST'     => $_POST,
-                            'COOKIE'   => $_COOKIE,
-                            'METHOD'   => $METHOD,
-                            'HEADERS'  => getallheaders(),
-                            'BASE_URL' => getenv('URL')
+                            'GET'         => $variables,
+                            'QUERYPARAMS' => $_GET,
+                            'POST'        => $_POST,
+                            'COOKIE'      => $_COOKIE,
+                            'METHOD'      => $METHOD,
+                            'HEADERS'     => getallheaders(),
+                            'BASE_URL'    => getenv('URL')
                         ];
 
                         try {
@@ -294,20 +301,17 @@
 
                         $stop = true;
 
-                        if (is_string($response))
-                            echo $response;
-                        else {
-                            header('Content-Type:'.$response->content_type);
-                            if ($response->status_code) http_response_code($response->status_code);
-                            foreach ($response->get_headers() as $key => $value) {
-                                header($key.':'.$value);
-                            }
-                            foreach ($response->get_cookies() as $key => $value) {
-                                setcookie($key, $value, 0, '/');
-                            }
-
-                            echo $response->get_data();
+                        header('Content-Type:'.$response->content_type);
+                        if ($response->status_code) http_response_code($response->status_code);
+                        foreach ($response->get_headers() as $key => $value) {
+                            header($key.':'.$value);
                         }
+                        foreach ($response->get_cookies() as $key => $value) {
+                            setcookie($key, $value, 0, '/');
+                        }
+
+                        echo $response->get_data();
+    
                         exit(0);
                     }
                 }

@@ -2,6 +2,7 @@
     namespace jc\middleware;
 
     use jc\qbuilder\QBuilder;
+    use jc\response\JSONResponse;
     use jc\response\RedirectResponse;
     use jc\response\Response;
     use jc\response\Render;
@@ -210,6 +211,25 @@
 
                     return $view($request);
                 };
+            };
+        }
+
+        public static function adaptresponse() {
+            return function(callable $view) {
+                return function($request) use ($view) {
+                    $response = $view($request);
+
+                    if (is_array($response)) {
+                        if (is_array($response[0]))
+                            $response = new JSONResponse($response[0], $response[1] ?? 200);
+                        else
+                            $response = new Response($response[0], $response[1] ?? 200);
+
+                        return $response;
+                    }
+                    
+                    return new Response($response);
+                };   
             };
         }
     }

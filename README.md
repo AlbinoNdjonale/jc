@@ -9,7 +9,7 @@ Jc é framework web feito em php, que visa ser facil e simples de compreender.
 ## Para iniciar um projecto
 
 ```bush
-git clone shddbdss projecto
+git clone https://github.com/AlbinoNdjonale/jc.git projecto
 ```
 
 ## Estrutura inicial de um projecto JC
@@ -159,7 +159,7 @@ new JSONResponse([
 este tipo de response é usado para retornar arquivos, o seu primeiro argumento é o caminho completo do arquivo.
 
 ```php
-new JSONResponse('./files/image.jpg');
+new FILEResponse('./files/image.jpg');
 ```
 
 #### `Render`
