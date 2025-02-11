@@ -1,8 +1,20 @@
 <?php
     namespace jc;
 
+    // increasing environment variables
+    if (file_exists('.env'))
+        foreach (file('.env') as $line) {
+            if (empty(trim($line)) || str_starts_with($line, '#')) continue;
+            
+            $split = explode('=', $line, 2);
+
+            if (count($split) == 2)
+                putenv(trim($split[0]).'='.trim($split[1]));
+        }
+
     require __DIR__.'/util.php';
     require __DIR__.'/qbuilder.php';
+    require __DIR__.'/helpers.php';
     require __DIR__.'/pages.php';
     require __DIR__.'/middleware.php';
 
@@ -69,17 +81,6 @@
         </body>
         </html>
     ';
-
-    // increasing environment variables
-    if (file_exists('.env'))
-        foreach (file('.env') as $line) {
-            if (empty(trim($line)) || str_starts_with($line, '#')) continue;
-            
-            $split = explode('=', $line, 2);
-
-            if (count($split) == 2)
-                putenv(trim($split[0]).'='.trim($split[1]));
-        }
 
     $BASEURL  = getenv('URL');
     $parseurl = parse_url($BASEURL);

@@ -65,17 +65,6 @@
         </html>
     ';
 
-    function db() {
-        return new QBuilder(
-            getenv('DATABASE'),
-            getenv('DATABASENAME'),
-            getenv('DATABASEPASSWORD'),
-            getenv('DATABASEHOST'),
-            getenv('DATABASEUSER'),
-            (int) getenv('DATABASEPORT')
-        );
-    }
-
     class Middleware {
         public static function cors(array $params) {
             return function(callable $view) use ($params) {

@@ -18,7 +18,7 @@
 
         protected bool $is_insert = false;
 
-        public function __construct(string $dbconnection, string $dbname, ?string $dbpassword = null, ?string $dbhost = null, ?string $dbuser = null, ?int $dbport = null) {            
+        public function __construct(string $dbconnection, string $dbname, ?string $dbpassword = null, ?string $dbhost = null, ?string $dbuser = null, ?int $dbport = null) {
             $this->dbconnection = $dbconnection;
             $this->conn = $this->connect($dbname, $dbpassword, $dbhost, $dbuser, $dbport);
         }

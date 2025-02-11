@@ -8,17 +8,6 @@
     use jc\qbuilder\QBuilder;
     use jc\util\Util;
 
-    function db() {
-        return new QBuilder(
-            getenv('DATABASE'),
-            getenv('DATABASENAME'),
-            getenv('DATABASEPASSWORD'),
-            getenv('DATABASEHOST'),
-            getenv('DATABASEUSER'),
-            (int) getenv('DATABASEPORT')
-        );
-    }
-
     class Pages {
         public static function login($templa_tename, $validat = false) {
             return function($request) use ($templa_tename, $validat) {
