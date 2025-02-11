@@ -181,7 +181,7 @@
                                     'is_active' => 0
                                 ]);
                             } else {
-                                $user = $db->table('user')->select()->where('id = '.$token['user'])->query()->first();
+                                $user = $db->table('user')->select()->where('id = '.QBuilder::prepare($token['user']))->query()->first();
 
                                 Render::add_var("user", $user);
                                 Util::set_user($user);

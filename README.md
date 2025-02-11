@@ -375,6 +375,8 @@ O Jc traz consigo um Query Builder muito simples de ser usado.
     use jc\qbuilder\QBuilder;
     use jc\util\Util;
 
+    use function jc\qbuilder\q;
+
     $api = new JCRoute();
 
     function db() {
@@ -395,7 +397,7 @@ O Jc traz consigo um Query Builder muito simples de ser usado.
 
         $user = $db->table('user')
             ->select()
-            ->where('id = '.QBuilder::prepare($userid))
+            ->where(q()->id->equal($userid))
             ->query()
             ->first();
 
@@ -425,14 +427,14 @@ O Jc traz consigo um Query Builder muito simples de ser usado.
 
         $user = $db->table('user')
             ->select()
-            ->where('id = '.QBuilder::prepare($userid))
+            ->where(q()->id->equal($userid))
             ->query()
             ->first();
 
         if ($user) {
             $db->table('user')
                 ->delete()
-                ->where('id = '.QBuilder::prepare($userid))
+                ->where(q()->id->equal($userid))
                 ->execute();
 
                 return new JSONResponse([
@@ -453,7 +455,7 @@ O Jc traz consigo um Query Builder muito simples de ser usado.
 
         $userexist = $db->table('user')
             ->select()
-            ->where('id = '.QBuilder::prepare($userid))
+            ->where(q()->id->equal($userid))
             ->query()
             ->exist();
 
@@ -467,12 +469,12 @@ O Jc traz consigo um Query Builder muito simples de ser usado.
             if ($is_valid[0]) {
                 $db->table('user')
                     ->update($request['POST'])
-                    ->where('id = '.QBuilder::prepare($userid))
+                    ->where(q()->id->equal($userid))
                     ->execute();
 
                 $user = $db->table('user')
                     ->select()
-                    ->where('id = '.QBuilder::prepare($userid))
+                    ->where(q()->id->equal($userid))
                     ->query()
                     ->first();
 
@@ -506,7 +508,7 @@ O Jc traz consigo um Query Builder muito simples de ser usado.
 
             $user = $db->table('user')
                 ->select()
-                ->where('id = max(id)')
+                ->where('id = max(id) no sql injection') // Se usuares codigo sql diretamente,deves informar que ele não é vulneravel a sqlinject
                 ->query()
                 ->first();
 

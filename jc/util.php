@@ -177,7 +177,7 @@
 
                     $db->table('user')->update([
                         'is_active' => 0
-                    ])->where('id = \''.Util::get_user()['id'].'\'')->execute();
+                    ])->where('id = '.QBuilder::prepare(Util::get_user()['id']))->execute();
                 }
             } 
 

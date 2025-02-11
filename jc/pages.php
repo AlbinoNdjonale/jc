@@ -32,7 +32,7 @@
 
                     $db->table('user')->update([
                         'is_active' => 0
-                    ])->where('id = \''.$user['id'].'\'')->execute();
+                    ])->where('id = '.QBuilder::prepare($user['id']))->execute();
 
                     setcookie('token', '', 1, '/');
                 
@@ -61,7 +61,7 @@
 
                             $db->table('user')->update([
                                 'is_active' => 0
-                            ])->where('id = \''.$user['id'].'\'')->execute();
+                            ])->where('id = '.QBuilder::prepare($user['id']))->execute();
                         }
 
                         $db->close();
@@ -96,7 +96,7 @@
                 if ((new DateTime()) >= (new DateTime($token_restart['valid_until']))) {
                     $db->table('token')
                         ->delete()
-                        ->where('id = '.$token_restart['token'])
+                        ->where('id = '.QBuilder::prepare($token_restart['token']))
                         ->execute();
                     
                     $db->close();
@@ -110,7 +110,7 @@
 
                 $db->table('token')
                     ->update(['valid_until' => $date->modify("+$validat hour")->format('Y-m-d H:i:s')])
-                    ->where('id = '.$token_restart['token'])
+                    ->where('id = '.QBuilder::prepare($token_restart['token']))
                     ->execute();
 
                 $db->close();
