@@ -3,16 +3,24 @@
     namespace jc\response;
 
     use Exception;
+    use Generator;
     use function jc\url_for;
 
     class Response {
-        protected string $data;
+        protected string|Generator $data;
         public ?int $status_code;
         protected array $headers;
         protected array $cookies;
         public string $content_type;
 
-        public function __construct(string $data, int $status_code = null, array $headers = [], array $cookies = []) {
+        /**
+         * Summary of __construct
+         * @param string|Generator<int, string> $data
+         * @param int $status_code
+         * @param array $headers
+         * @param array $cookies
+         */
+        public function __construct(string|Generator $data, int $status_code = null, array $headers = [], array $cookies = []) {
             $this->data         = $data;
             $this->status_code  = $status_code;
             $this->headers      = $headers;
@@ -46,6 +54,13 @@
     }
 
     class JSONResponse extends Response {
+        /**
+         * Summary of __construct
+         * @param mixed $data
+         * @param int $status_code
+         * @param array $headers
+         * @param array $cookies
+         */
         public function __construct($data, int $status_code = null, array $headers = [], array $cookies = []) {
             $data = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             
@@ -55,20 +70,68 @@
         }
     }
 
-    class FILEResponse extends Response {
+    class StreamingResponse extends Response {
+        /**
+         * Summary of __construct
+         * @param callable(): Generator<int, string> $function
+         * @param int $status_code
+         * @param array $headers
+         * @param array $cookies
+         */
+        public function __construct(callable $function, int $status_code = null, array $headers = [], array $cookies = []) {
+            parent::__construct($function(), $status_code, $headers, $cookies);
+        
+            $this->set_header('Cache-Control', 'no-cache');
+        }
+    }
+
+    class FILEResponse extends StreamingResponse {
+        /**
+         * Summary of __construct
+         * @param string $file
+         * @param int $status_code
+         * @param array $headers
+         * @param array $cookies
+         * @throws Exception
+         */
         public function __construct(string $file, int $status_code = null, array $headers = [], array $cookies = []) {
             if (!file_exists($file) || !is_file($file))
                 throw new Exception("File not found", 1);
-                
-            $data = file_get_contents($file);
             
-            parent::__construct($data, $status_code, $headers, $cookies);
+            $handle = fopen($file, "rb");
+
+            if (!$handle) 
+                throw new Exception("Error to open file", 1);
+
+            parent::__construct(
+                function() use ($handle) {
+                    $tam = 1024 * 1024;
+
+                    while (!feof($handle)) {
+                        yield fread($handle, $tam);
+                    }
+
+                    fclose($handle);
+                },
+                $status_code,
+                $headers,
+                $cookies
+            );
+
+            $this->set_header('Content-Length', filesize($file));
 
             $this->content_type = mime_content_type($file);   
         }
     }
 
     class RedirectResponse extends Response {
+        /**
+         * Summary of __construct
+         * @param string $url
+         * @param int $status_code
+         * @param array $headers
+         * @param array $cookies
+         */
         public function __construct(string $url, int $status_code = 302, array $headers = [], array $cookies = []) {            
             parent::__construct('', $status_code, $headers, $cookies);
             $this->set_header('location', $url);
@@ -78,6 +141,14 @@
     class Render extends Response {
         private static $vars = [];
 
+        /**
+         * Summary of __construct
+         * @param string $template
+         * @param array $context
+         * @param int $status_code
+         * @param array $headers
+         * @param array $cookies
+         */
         public function __construct(string $template, array $context = [], int $status_code = null, array $headers = [], array $cookies = []) {
             $data = self::render($template, $context);
 
@@ -88,7 +159,7 @@
             global $template_folder_default;
             
             $template1 = $template;
-            $template = $template_folder_default.$template.'.html';
+            $template = "$template_folder_default{$template}.html";
 
             if (!file_exists($template) || !is_file($template))
                 throw new Exception("Template '$template1' not found", 1);

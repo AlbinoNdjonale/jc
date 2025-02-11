@@ -1,6 +1,8 @@
 <?php
     namespace jc;
 
+    use Generator;
+
     // increasing environment variables
     if (file_exists('.env'))
         foreach (file('.env') as $line) {
@@ -195,7 +197,7 @@
 
             $URI = urldecode($_SERVER["REQUEST_URI"]);
 
-            $separator = $PREFIX."/$static_folder_default";
+            $separator = "$PREFIX/$static_folder_default";
             $split_uri = explode($separator, $URI);
 
             if (count($split_uri) > 1 && $split_uri[0] == '') {
@@ -304,17 +306,28 @@
 
                         $stop = true;
 
-                        header('Content-Type:'.$response->content_type);
-                        if ($response->status_code) http_response_code($response->status_code);
+                        header("Content-Type:{$response->content_type}");
                         foreach ($response->get_headers() as $key => $value) {
-                            header($key.':'.$value);
+                            header("$key:$value");
                         }
                         foreach ($response->get_cookies() as $key => $value) {
                             setcookie($key, $value, 0, '/');
                         }
 
-                        echo $response->get_data();
-    
+                        $data = $response->get_data();
+
+                        if ($data instanceof Generator)
+                            foreach ($data as $chunk) {
+                                echo $chunk;
+                                ob_flush();
+                                flush();
+                            }
+                        else
+                            echo $data;
+
+                        if ($response->status_code)
+                            http_response_code($response->status_code);
+
                         exit(0);
                     }
                 }
