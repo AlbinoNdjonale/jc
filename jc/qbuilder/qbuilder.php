@@ -8,6 +8,8 @@
     use SQLite3Result;
     use Error;
 
+    define('NOERRORSQL', 'no sql injection');
+
     class QBuilder {
         protected mysqli|SQLite3|null $conn;
         protected string $dbconnection;
@@ -108,7 +110,7 @@
             }
             $values = implode(',', $values);
 
-            $this->start = "UPDATE ".$this->table." SET $values";
+            $this->start = "UPDATE {$this->table} SET {$values}";
 
             return $this;
         }
@@ -220,7 +222,9 @@
             $content = str_replace('\\', '\\\\', $content);
             $content = str_replace('\'', '\\\'', $content);
 
-            return "'$content' no sql injection";
+            $noerrorsql = NOERRORSQL;
+
+            return "'$content' {$noerrorsql}";
         }
 
         public function affected_rows() {
@@ -232,8 +236,8 @@
         }
 
         protected function verifysqlinject(string $sql) {
-            if (str_contains($sql, 'no sql injection'))
-                return str_replace('no sql injection', '', $sql);
+            if (str_contains($sql, NOERRORSQL))
+                return str_replace(NOERRORSQL, '', $sql);
             
             throw new Error("Error. This query is vulnerable to SQL injection. use the 'q' function to generate safe queries", 1);
         }

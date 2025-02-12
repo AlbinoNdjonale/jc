@@ -1,6 +1,7 @@
 <?php
     namespace jc;
 
+    use DateTime;
     use Generator;
 
     // increasing environment variables
@@ -14,11 +15,11 @@
                 putenv(trim($split[0]).'='.trim($split[1]));
         }
 
-    require __DIR__.'/util.php';
-    require __DIR__.'/qbuilder.php';
+    require __DIR__.'/util/util.php';
+    require __DIR__.'/qbuilder/qbuilder.php';
     require __DIR__.'/helpers.php';
-    require __DIR__.'/pages.php';
-    require __DIR__.'/middleware.php';
+    require __DIR__.'/pages/pages.php';
+    require __DIR__.'/middleware/middleware.php';
 
     use ArrayAccess;
     use Error;
@@ -84,10 +85,6 @@
         </html>
     ';
 
-    $BASEURL  = getenv('URL');
-    $parseurl = parse_url($BASEURL);
-    $PREFIX   = $parseurl["path"] ?? "";
-
     $routes_names = [];
 
     function url_for(string $name, array $params = [], int $idx = 0) {
@@ -103,12 +100,12 @@
             $path = $routes_names[$name][$idx];
 
         foreach ($params as $key => $value)
-            $path = str_replace('{'.$key.'}', $value, $path);
+            $path = str_replace("'{{$key}}", $value, $path);
 
-        return $BASEURL.$path;
+        return "$BASEURL$path";
     }
 
-    require __DIR__.'/response.php';
+    require __DIR__.'/http/response.php';
 
     class JCRoute {
         protected array $middlewares = [];
@@ -181,6 +178,8 @@
     }
 
     class Jc extends JCRoute {
+        protected static array $logs = [];
+
         public function __construct(string $static_folder = 'static/', string $template_folder = 'templates/') {
             global $template_folder_default;
             global $static_folder_default;
@@ -192,7 +191,12 @@
         }
 
         public function run() {
-            global $PREFIX;
+            $domain = getenv('DOMAIN')?getenv('DOMAIN'):$_SERVER['HTTP_HOST'];
+            putenv("URL={$_SERVER['REQUEST_SCHEME']}://{$domain}");
+            $BASEURL  = getenv('URL');
+            $parseurl = parse_url($BASEURL);
+            $PREFIX   = $parseurl["path"] ?? "";
+
             global $static_folder_default;
 
             $URI = urldecode($_SERVER["REQUEST_URI"]);
@@ -262,6 +266,22 @@
                 });
             }
 
+            $paramsreq = [
+                'GET'         => [],
+                'QUERYPARAMS' => $_GET,
+                'POST'        => $_POST,
+                'COOKIE'      => $_COOKIE,
+                'METHOD'      => $METHOD,
+                'HEADERS'     => getallheaders(),
+                'BASE_URL'    => getenv('URL'),
+                'URL'         => "{$_SERVER['REQUEST_SCHEME']}://{$_SERVER['HTTP_HOST']}$URI",
+                'ADDRESS'     => $_SERVER['REMOTE_ADDR'],
+                'PORT'        => $_SERVER['SERVER_PORT'],
+                'HOST'        => $_SERVER['HTTP_HOST'],
+                'PROTOCOL'    => $_SERVER['SERVER_PROTOCOL'],
+                'URL_PATH'    => urldecode($_SERVER["REQUEST_URI"])
+            ];
+
             foreach ($this->routes as $nameroute => $route) {
                 if (!is_array($route["path"]))
                     $route["path"] = [$route["path"]];
@@ -285,20 +305,17 @@
 
                         $NOMETHOD = false;
 
-                        $request = new Request([
-                            'GET'         => $variables,
-                            'QUERYPARAMS' => $_GET,
-                            'POST'        => $_POST,
-                            'COOKIE'      => $_COOKIE,
-                            'METHOD'      => $METHOD,
-                            'HEADERS'     => getallheaders(),
-                            'BASE_URL'    => getenv('URL')
-                        ]);
+                        $paramsreq['GET'] = $variables;
+
+                        $request = new Request($paramsreq);
 
                         try {
                             if (isset($route['response_code'])) http_response_code($route['response_code']);
-
                             $response = $route["view"]($request);
+
+                            $status_code = $response->status_code?$response->status_code:(isset($route['response_code'])?$route['response_code']:200);
+
+                            self::logger($request, $status_code);
                         } catch (\Throwable $th) {
                             $NOPROSSES = (string) $th;
                             break;
@@ -336,15 +353,21 @@
 
             global $basehtml;
 
+            $request = new Request($paramsreq);
+
             if ($NOTFOUND) {
                 echo str_replace(['{{title}}', '{{content}}'], ['404 NOT FOUND', '<h2><span class = "code">404</span> PAGE NOT FOUND</h2>'], $basehtml);
                 http_response_code(404);
+                self::logger($request, 404);
             } else if ($NOMETHOD) {
                 echo str_replace(['{{title}}', '{{content}}'], ['405 METHOD NOT ALLOWED', '<h2><span class = "code">405</span> METHOD NOT ALLOWED</h2>'], $basehtml);
                 http_response_code(405);
+                self::logger($request, 405);
             } else if ($NOPROSSES) {
                 echo str_replace(['{{title}}', '{{content}}'], ['500 INTERN ERROR', getenv('DEV')=='false'?'<h2><span class = "code">500</span> INTERN SERVER ERROR</h2>':"<div><pre>$NOPROSSES</pre></div>"], $basehtml);
                 http_response_code(500);
+                self::logger($request, 500);
+                __send_file_log($NOPROSSES);
             }
 
             exit(1);
@@ -366,6 +389,17 @@
                     $_POST = json_decode($json_data, true);
                 }
             }
+        }
+
+        public static function add_log(string $content) {
+            array_push(self::$logs, $content);
+        }
+
+        protected static function logger(Request $request, int $status_code) {
+            $date = (new DateTime())->format('d/m/Y H:i:s.v');
+            __send_file_log("{$request->address} [{$date}] {$request->protocol} {$request->method} PORT:{$request->port} {$request->url_path} {$status_code}");
+            if (count(self::$logs))
+               __send_file_log(implode("\n", self::$logs));
         }
 
         /**
@@ -421,6 +455,12 @@
         public readonly string $method;
         public readonly array $headers;
         public readonly string $base_url;
+        public readonly string $url;
+        public readonly string $host;
+        public readonly string $address;
+        public readonly int $port;
+        public readonly string $protocol;
+        public readonly string $url_path;
 
         private readonly array $attributes;
 
@@ -432,6 +472,12 @@
             $this->method = $attributes['METHOD'];
             $this->headers = $attributes['HEADERS'];
             $this->base_url = $attributes['BASE_URL'];
+            $this->url = $attributes['URL'];
+            $this->host = $attributes['HOST'];
+            $this->address = $attributes['ADDRESS'];
+            $this->port = $attributes['PORT'];
+            $this->protocol = $attributes['PROTOCOL'];
+            $this->url_path = $attributes['URL_PATH'];
 
             $this->attributes = $attributes;
         }

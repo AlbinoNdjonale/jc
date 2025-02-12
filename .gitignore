@@ -4,5 +4,6 @@ routes/
 templates/
 static/
 db/
+jc/log/jc.log
 rengoku.jpg
 obito.png
