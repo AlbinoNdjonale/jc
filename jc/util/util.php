@@ -126,7 +126,7 @@
 
             $user = $db->table('user')
                 ->select()
-                ->where('password = \''.hash('sha256', $password.getenv('SECRETKEY')).'\'')
+                ->where('password = '.QBuilder::prepare(hash('sha256', $password.getenv('SECRETKEY'))))
                 ->and_where("$attr = ".QBuilder::prepare($email_or_username))
                 ->query()
                 ->first();
@@ -195,7 +195,7 @@
 
             $db->table('token')->insert($attrs)->execute();
 
-            $token = $db->table('token')->select(['id', 'content'])->where("content = '$token'")->query()->first();
+            $token = $db->table('token')->select(['id', 'content'])->where("content = ".QBuilder::prepare($token))->query()->first();
             
             $db->table('user')->update([
                 'is_active' => 1

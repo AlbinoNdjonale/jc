@@ -99,7 +99,7 @@
                 return $this->verifysqlinject(self::prepare($item));
             }, $data));
 
-            $this->start = "INSERT INTO ".$this->table."($keys) VALUES ($values)";
+            $this->start = "INSERT INTO {$this->table}($keys) VALUES ($values)";
             return $this;
         }
 

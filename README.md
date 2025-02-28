@@ -19,10 +19,15 @@ git clone https://github.com/AlbinoNdjonale/jc.git projecto
 │
 ├── jc
 │   ├── index.php
-│   ├── middleware.php
-│   ├── pages.php
-│   ├── qbuilder.php
-│   ├── response.php
+│   ├── middleware
+│   │   └── middleware.php
+│   ├── pages
+│   │   └── pages.php
+│   ├── qbuilder
+│   │   └── qbuilder.php
+│   ├── http
+│   │   ├── response.php
+│   │   └── request.php
 │   └── util.php
 ├── index.php
 ├── README.md

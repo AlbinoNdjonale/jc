@@ -140,6 +140,8 @@
 
     class Render extends Response {
         private static $vars = [];
+        public static string $extend = '';
+        public static array $blocks = [];
 
         /**
          * Summary of __construct
@@ -188,12 +190,36 @@
                 eval('$'.$key.' = $context["'.$key.'"];');
 
             try {
+                self::$extend = '';
                 eval(implode("\n", $lines));
             } catch (\Throwable $th) {
                 throw new Exception("Error to render '$template1' template", 1);
             }
 
-            return implode("\n", $renderizado);
+            $response = implode("\n", $renderizado);
+
+            if (self::$extend) {
+                $extend = self::$extend;
+
+                $base = self::render(self::$extend, []);
+
+                $blocks = [];
+
+                foreach (self::$blocks as $block_) {
+                    $block = explode('-', $block_)[1];
+
+                    $block = strtoupper(substr($block, 0, 1)).substr($block, 1);
+
+                    $pattern = "/[<]{$block}[>]([\s\S]*)[<]\/{$block}[>]/";
+
+                    if (preg_match($pattern, $response, $mathe))
+                        $blocks[$block_] = $mathe[1];
+                }
+
+                $response = str_replace(array_keys($blocks), array_values($blocks), $base);
+            }
+
+            return $response;
         }
 
         public static function add_var($key, $value) {
@@ -213,4 +239,14 @@
         global $static_folder_default;
 
         return getenv('URL')."/$static_folder_default$filename";
+    });
+
+    Render::add_var('extends', function($template) {
+        Render::$extend = $template;
+    });
+
+    Render::add_var('block', function($block) {
+        array_push(Render::$blocks, "block-$block");
+
+        return "block-$block";
     });

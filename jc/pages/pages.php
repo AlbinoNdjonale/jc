@@ -8,6 +8,8 @@
     use jc\qbuilder\QBuilder;
     use jc\util\Util;
 
+    use function jc\url_for;
+
     class Pages {
         public static function login($templa_tename, $validat = false) {
             return function($request) use ($templa_tename, $validat) {
@@ -19,7 +21,7 @@
             };
         }
 
-        public static function logout($next) {
+        public static function logout(?string $next = null) {
             return function($request) use ($next) {
                 $user = Util::get_user();
 
@@ -39,7 +41,10 @@
                     $db->close();
                 }
 
-                return new RedirectResponse($next);
+                if ($next)
+                    return new RedirectResponse(url_for($next));
+
+                return new RedirectResponse(getenv('URL').getenv('URLLOGIN'));
             };
         }
 
