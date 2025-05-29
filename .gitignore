@@ -4,6 +4,7 @@ routes/
 templates/
 static/
 db/
-jc/log/jc.log
+jc/stores/**
+!jc/stores/**/.gitkeep
 rengoku.jpg
 obito.png

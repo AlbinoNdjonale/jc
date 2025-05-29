@@ -1,6 +1,7 @@
 <?php
     namespace jc;
 
+    use jc\response\Response;
     use DateTime;
     use Generator;
 
@@ -144,6 +145,7 @@
                 'path'          => $path,
                 'methods'       => $params['methods'],
                 'view'          => $view,
+                'real_time'     => false,
                 'response_code' => $params['response_code'] ?? null
             ];
 
@@ -151,6 +153,40 @@
                 $this->routes[$params['name']] = $route;
             else
                 array_push($this->routes, $route);
+        }
+
+        public function real_time(string | array $path, callable $view) {
+            array_push($this->routes, [
+                'path'          => $path,
+                'methods'       => ['GET', 'POST'],
+                'view'          => function (RealTime $real_time) use ($view) {
+                    if ($real_time->method === "POST") {
+                        $data = $real_time->data();
+
+                        if (!in_array($data["connection"], $real_time->get_connections()))
+                            return new Response("", 403);
+
+                        do {
+                            $hundle = fopen($real_time->connection, 'r+');
+                        } while (!$hundle);
+
+                        flock($hundle, LOCK_EX);
+
+                        $real_time_ = fread($hundle, $real_time->filesize($hundle));
+                        $real_time_ = json_decode($real_time_, true);
+
+                        $real_time_[$data["connection"]] = $data["message"];
+
+                        $real_time->write($hundle, $real_time_);
+
+                        return new Response("", 200);
+                    }
+                    
+                    return $view($real_time);
+                },
+                'real_time'     => true,
+                'response_code' => null
+            ]);
         }
 
         public function include_route(JCRoute $route, string $prefix = '') {         
@@ -313,10 +349,26 @@
 
                         $paramsreq['GET'] = $variables;
 
-                        $request = new Request($paramsreq);
-
                         try {
+                            if ($route["real_time"]) {
+                                $hash = hash('sha256', $paramsreq['url']);
+                                $file_conn_stream = __DIR__."/stores/channel_stream/$hash.json";
+    
+                                if (!file_exists($file_conn_stream)) {
+                                    $hundle = fopen($file_conn_stream, 'w');
+                                    fwrite($hundle, '{"connections": [], "message": null}');
+                                    fclose($hundle);
+                                }
+
+                                $paramsreq["CONNECTION"] = $file_conn_stream;
+
+                                $request = new RealTime($paramsreq);
+                            } else {
+                                $request = new Request($paramsreq);
+                            }
+
                             if (isset($route['response_code'])) http_response_code($route['response_code']);
+                            
                             $response = $route["view"]($request);
 
                             $status_code = $response->status_code?$response->status_code:(isset($route['response_code'])?$route['response_code']:200);

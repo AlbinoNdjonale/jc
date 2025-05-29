@@ -78,7 +78,7 @@
          * @param array $headers
          * @param array $cookies
          */
-        public function __construct(callable $function, int $status_code = null, array $headers = [], array $cookies = []) {
+        public function __construct(callable $function, int|null $status_code = null, array $headers = [], array $cookies = []) {
             parent::__construct($function(), $status_code, $headers, $cookies);
         
             $this->set_header('Cache-Control', 'no-cache');
@@ -94,7 +94,7 @@
          * @param array $cookies
          * @throws Exception
          */
-        public function __construct(string $file, int $status_code = null, array $headers = [], array $cookies = []) {
+        public function __construct(string $file, int|null $status_code = null, array $headers = [], array $cookies = []) {
             if (!file_exists($file) || !is_file($file))
                 throw new Exception("File not found", 1);
             

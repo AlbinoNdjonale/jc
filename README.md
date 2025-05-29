@@ -76,23 +76,24 @@ para adicionar paginas no nosso app, basta chamar os metodos get, post, delete, 
 
     use jc\response\Response;
     use jc\response\Render;
+    use jc\request\Request;
     use jc\response\RedirectResponse;
 
     use function jc\url_for;
 
     $app = new Jc();
 
-    $app->get('/', ['name' => 'home'], function($request) {
+    $app->get('/', ['name' => 'home'], function(Request $request) {
         return new Response('HOME');
     });
 
-    $app->get('/prophile/{username}', ['name' => 'prophile'], function($request) {
+    $app->get('/prophile/{username}', ['name' => 'prophile'], function(Request $request) {
         $username = $request['GET']['username'];
 
         return new Response("$username's prophile");
     });
 
-    $app->route('/login', ['name' => 'login', 'methods' => ['GET', 'POST']], function($request) {
+    $app->route('/login', ['name' => 'login', 'methods' => ['GET', 'POST']], function(Request $request) {
         if ($request['METHOD'] == 'GET') return new Render('login');
 
         $username = $request['POST']['username'];
@@ -167,6 +168,22 @@ este tipo de response é usado para retornar arquivos, o seu primeiro argumento 
 new FILEResponse('./files/image.jpg');
 ```
 
+#### `StreamingResponse`
+
+este tipo de response é usado para retornar dados em partes para evitar a sobrecarga ou até mesmo no caso de que os dados ainda estejam em produção
+
+```php
+new StreamingResponse(function() {
+    foreach ([1, 2, 3, 4] as $number) {
+        yield $number;
+
+        sleep(1) // Simulação de um processamento
+    }
+});
+```
+
+no exemplo acima os numeros serão enviados de cada vez para o cliente, e no fim de tudo a conexão sera desfeita
+
 #### `Render`
 
 este tipo de response é usado para retornar código html mais complexo, este código é escrito em um arquivo html separado. o seu primeiro argumento é o nome do arquivo html sem a sua extensão, estes arquivos são armazenados por padrão dentro do directorio `./templates/`, mas isso pode ser alterado ao definir o seu app, `$app = new Jc('static/', 'templates/');`, o primeiro argumento representa o directorio onde os arquivos estaticos são armazenados e o segundo argumento representa o directorio onde são armazenados os templates usados pelo response Render.
@@ -234,6 +251,121 @@ Existe uma forma de definir identificadores que faz com que eles sejam globais, 
 
 ```php
 Render::add_var('identificadorglobal', 'valor');
+```
+
+Tambem é possivel criar templates base e extendelos para outros templates. a baixo um exemplo de um template base.
+
+```html
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset = "UTF-8">
+        <meta name = "viewport" content = "width=device-width, initial-scale=1.0">
+        <title>{{ $block("title") }}</title>
+        <link rel="stylesheet" href = "{{ $static("css/style.css") }}">
+    </head>
+
+    <body>
+        {{ $include("Header") }}
+        
+        {{ $block("content") }}
+    </body>
+</html>
+```
+
+Todo lugar onde declaramos `{{ $block("contnet") }}` é usado para definir um bloco chamado content que sera utlizado o template que herdara deste template base. a baixo um exemplo de um template que herda da base.
+
+```html
+@$extends('base');
+
+<Title>home</Title>
+
+<Content>
+    <nav>
+        <ul>
+            @foreach (["home", "login"] as $value) {
+                <li><a href = {{ $url($value) }}>{{ $value }}</a></li>
+            @}
+        </ul>
+    </nav>
+
+    @if ($username) {
+        Olá, {{ $username }}
+    @} else {
+        Bem Vindo
+    }
+</Content>
+```
+
+Como podes ver os blocos deinidos na base foram usados como tag html, observer que as primeiras letras estão a maiusculo para os diferenciar das tags originais.
+
+## Quase WebSocket
+
+Quem não tem cão, caça como gato :) :).
+
+Em php puro infelismente não temos as maravilhas do que é websocket, criamos uma implementação de streaming que tenta a maximo imitar o comportamento do websockt
+
+### RealTime
+
+O RealTime é um subtipo de Request que traz consigo um conjunto de metodos que facilitam a impletação do real_time (quase websockt)
+
+
+```php
+<?php
+    require __DIR__.'/jc/index.php';
+
+    use jc\Jc;
+
+    use jc\request\RealTime;
+
+    $app = new Jc();
+
+    $app->real_time('/push', function(RealTime $real_time) {
+        $real_time->wait_accept(); // Espera aceitar a conexão
+
+        while (true) {
+            $message = $real_time->wait_receive_json(); // Espera o cliente mandar uma mensagem, outro metodo poderia ser o wait_receive.
+
+            if ($message === null) // Se a conexão for disfeita
+                return new Response("");
+
+            $connections = $real_time->get_connections(); // Obtem um array com todos as conexões presente
+            $real_time->wait_send_json($message, $connections); // Envia a mensagem vinda do cliente para todas as connecxões
+        }
+    });
+```
+
+Veja um exemplo de um codigo javascript a servir de cliente
+
+```javascript
+const name = "Author"
+
+let connection = null
+
+const url = `https://localhost/local/push`
+
+const event_source = new EventSource(url)
+
+event_source.onmessage = event => {
+    if (event.data == "Are you ok") return // O servidor envia esta mensagem constatimente para verifcar a conexão
+    
+    if (!connection) { // A primeira resposta do servidor é o id da conexão
+        connection = event.data
+        return
+    }
+    
+    const message = event.data // mensagem vinda do servidor
+}
+
+const send_message = async () => {
+    await fetch(url, {
+        method: 'POST',
+        body: JSON.stringfy({
+            connection,
+            message: "My message"
+        })
+    })
+}
 ```
 
 ## Modularizando o app
@@ -383,17 +515,6 @@ O Jc traz consigo um Query Builder muito simples de ser usado.
     use function jc\qbuilder\q;
 
     $api = new JCRoute();
-
-    function db() {
-        return new QBuilder(
-            'mysql',
-            'jc',
-            '',
-            'localhost',
-            'root',
-            3306
-        );
-    }
 
     $api->get('/{userid}', ['name' => 'user'], function($request) {
         $db = db();
@@ -686,5 +807,3 @@ Este middleware cria um identificador global para ser usado nos templates, este 
 #### authuser
 
 Este middleware analiza os dados enviados pelo usuario e tenta autenticar o usuário com os mesmos dados, ele cria o identificador global `$user` para ser usado nos templates.
-
-OBS. este middleware só é compativel com paginas web e não com api.
