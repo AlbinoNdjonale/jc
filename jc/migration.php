@@ -68,7 +68,7 @@
         "id"          => [integer_(), not_null(), primary_key(), auto_increment()],
         "content"     => [varchar(66), not_null(), unique()],
         "valid_until" => [date_(), not_null()],
-        "csfr"        => [boolean_(), not_null()],
+        "csrf"        => [boolean_(), not_null()],
         "user"        => [integer_(), foreign_key(), "reference" => "user(id)", "on_delete" => "CASCADE"]
     ]);
 

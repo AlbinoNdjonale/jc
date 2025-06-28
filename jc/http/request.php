@@ -4,6 +4,44 @@
     use ArrayAccess;
     use Error;
 
+    class File {
+        public readonly string $name;
+        public readonly string $full_path;
+        public readonly int $size;
+        public readonly bool $error;
+        public readonly string $real_name;
+        protected string $tmp_name;
+        public static string $upload_file;
+
+        public function __construct($attributes) {
+            $this->name      = self::securiti_name($attributes["name"]);
+            $this->real_name = $attributes["name"];
+            $this->full_path = $attributes["full_path"];
+            $this->tmp_name  = $attributes["tmp_name"];
+            $this->size      = $attributes["size"];
+            $this->error     = (bool) $attributes["error"];
+        }
+
+        public function save(?string $file_name = null) {
+            $to = $file_name??self::$upload_file."/{$this->name}";
+            
+            return move_uploaded_file($this->tmp_name, $to);
+        }
+
+        public static function securiti_name(string $name, ?string $in = null): string {
+            $dir      = $in??self::$upload_file;
+            $basename = $name;
+            
+            while (true) {
+                if (!file_exists("$dir/$name")) return $name;
+
+                $name = substr(hash("sha256", $name), -4).$basename;
+            }
+        }
+    }
+
+    File::$upload_file = getenv("UPLOADFILE");
+
     class Request implements ArrayAccess {
         public readonly ?array $post;
         public readonly array $get;
@@ -56,6 +94,21 @@
 
         public function get_query_param($key) {
             return $this->queryparams[$key] ?? null;
+        }
+
+        /**
+         * @return File[]
+         */
+        public function get_files(): array {
+            static $files;
+
+            if (!isset($files)) {
+                foreach ($_FILES as $key => $file) {
+                    $files[$key] = new File($file);
+                }
+            }
+
+            return $files;
         }
 
         public function offsetSet($_offset, $_value): void {

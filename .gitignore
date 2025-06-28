@@ -6,7 +6,9 @@ templates/
 static/
 tests/
 db/
-jc/stores/**
-!jc/stores/**/.gitkeep
+media/
+jc/storage/**
+!jc/storage/**/.gitkeep
+infrastructure/
 rengoku.jpg
 obito.png
