@@ -7,17 +7,6 @@
     use jc\response\RedirectResponse;
     use jc\response\Render;
 
-    function db() {
-        return new QBuilder(
-            getenv('DATABASE'),
-            getenv('DATABASENAME'),
-            getenv('DATABASEPASSWORD'),
-            getenv('DATABASEHOST'),
-            getenv('DATABASEUSER'),
-            (int) getenv('DATABASEPORT')
-        );
-    }
-
     class Util {
         protected static $user = null;
 
@@ -41,10 +30,13 @@
 
                 $db->table('user')->insert($params)->execute();
 
+                $error = $db->get_error();
+                if ($error["code"])
+                    return [false, $error["msg"]];
+
                 $user = $db->table('user')
                    ->select()
-                   ->where('email = '.QBuilder::prepare($params['email']))
-                   ->and_where('password = '.QBuilder::prepare($params['password']))
+                   ->where('id = '.QBuilder::prepare($db->last_insert_id()))
                    ->query()
                    ->first();
 

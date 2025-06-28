@@ -5,20 +5,12 @@
     use DateTime;
     use Generator;
 
-    // increasing environment variables
-    if (file_exists('.env'))
-        foreach (file('.env') as $line) {
-            if (empty(trim($line)) || str_starts_with($line, '#')) continue;
-            
-            $split = explode('=', $line, 2);
+    require __DIR__.'/helpers.php';
 
-            if (count($split) == 2)
-                putenv(trim($split[0]).'='.trim($split[1]));
-        }
+    up_env();
 
     require __DIR__.'/util/util.php';
     require __DIR__.'/qbuilder/qbuilder.php';
-    require __DIR__.'/helpers.php';
     require __DIR__.'/pages/pages.php';
     require __DIR__.'/middleware/middleware.php';
 
@@ -93,10 +85,7 @@
         if (!isset($routes_names[$name]))
             throw new Exception("ROUTE '$name' IS NOT DEFINED", 1);
 
-        if (is_string($routes_names[$name]))
-            $path = $routes_names[$name];
-        else
-            $path = $routes_names[$name][$idx];
+        $path = is_string($routes_names[$name])?$routes_names[$name]:$routes_names[$name][$idx];
 
         foreach ($params as $key => $value)
             $path = str_replace("{{$key}}", $value, $path);
@@ -233,7 +222,7 @@
         public function run() {
             global $BASEURL;
             
-            $domain = getenv('DOMAIN')?getenv('DOMAIN'):$_SERVER['HTTP_HOST'];
+            $domain = getenv('DOMAIN')??$_SERVER['HTTP_HOST'];
             putenv("URL={$_SERVER['REQUEST_SCHEME']}://{$domain}");
             $BASEURL  = getenv('URL');
             $parseurl = parse_url($BASEURL);
@@ -241,8 +230,20 @@
 
             global $static_folder_default;
 
-            $URI = urldecode($_SERVER["REQUEST_URI"]);
+            if (getenv('DEV') == 'true') {
+                $pattern_test = '/^('.preg_quote($PREFIX, '/').')\/test(\/.+)?$/';
 
+                if (preg_match($pattern_test, $_SERVER["REQUEST_URI"], $mathes)) {
+                    $request_uri = $mathes[1].($mathes[2]??'');
+                    $request_uri = empty($request_uri)?'/':$request_uri;
+
+                    $_SERVER["REQUEST_URI"] = $request_uri;
+                    putenv('TEST=true');
+                }
+            }
+
+            $URI = urldecode($_SERVER["REQUEST_URI"]);
+            
             $separator = "$PREFIX/$static_folder_default";
             $split_uri = explode($separator, $URI);
 
@@ -352,7 +353,7 @@
                         try {
                             if ($route["real_time"]) {
                                 $hash = hash('sha256', $paramsreq['url']);
-                                $file_conn_stream = __DIR__."/stores/channel_stream/$hash.json";
+                                $file_conn_stream = __DIR__."/storage/channel_stream/$hash.json";
     
                                 if (!file_exists($file_conn_stream)) {
                                     $hundle = fopen($file_conn_stream, 'w');

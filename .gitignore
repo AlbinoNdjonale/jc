@@ -1,8 +1,10 @@
+.vscode/
 requests.http
 .env
 routes/
 templates/
 static/
+tests/
 db/
 jc/stores/**
 !jc/stores/**/.gitkeep

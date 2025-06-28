@@ -6,14 +6,17 @@
     use mysqli_result;
     use SQLite3;
     use SQLite3Result;
+    use PgSql\Connection as PostgreSql;
+    use PgSql\Result as PostgreSqlResult;
     use Error;
 
     define('NOERRORSQL', 'no sql injection');
 
     class QBuilder {
-        protected mysqli|SQLite3|null $conn;
+        protected mysqli|SQLite3|PostgreSql|null $conn;
         protected string $dbconnection;
         protected array $lines = [];
+        protected array $sqls = [];
 
         protected string $table = '';
         protected string $start = '';
@@ -21,6 +24,11 @@
         protected array $ons = [];
         protected ?int $limit_ = null;
         protected int $offset_ = 0;
+        protected ?string $order_by_ = null;
+        protected bool $desc_ = false;
+
+        protected bool $only_start = false;
+        protected ?PostgreSqlResult $pg_result;
 
         public function __construct(string $dbconnection, string $dbname, ?string $dbpassword = null, ?string $dbhost = null, ?string $dbuser = null, ?int $dbport = null) {
             $this->dbconnection = $dbconnection;
@@ -75,7 +83,7 @@
                 return $item;
             }, $attrs)):'*';
 
-            $this->start = "SELECT $attrs FROM ".$this->table;
+            $this->start = "SELECT $attrs FROM {$this->table}";
             return $this;
         }
 
@@ -116,7 +124,140 @@
         }
 
         public function delete() {
-            $this->start = "DELETE FROM ".$this->table;
+            $this->start = "DELETE FROM {$this->table}";
+
+            return $this;
+        }
+
+        protected function attributes(array $attrs) {
+            return implode(",\n", array_map(
+                fn($key, $value) => (
+                    "`$key` ".((in_array('auto_increment', $value)&&$this->dbconnection==='postgresql')?"SERIAL":$value[0])
+                    .(in_array('not_null', $value)?' NOT NULL':'')
+                    .(in_array('auto_increment', $value)&&$this->dbconnection==='mysql'?" AUTO_INCREMENT":"")
+                    .(isset($value['default'])?" DEFAULT {$value['default']}":'')
+                    .(in_array('unique', $value)&&$this->dbconnection==='sqlite'?" UNIQUE":"")
+                ),
+                array_keys($attrs),
+                $attrs
+            ));
+        }
+
+        public function create(array $attrs) {
+            $foreign_keys = array_filter($attrs, fn ($attr) => in_array('foreign_key', $attr));
+            
+            $foreign_keys = implode(",\n", array_map(
+                fn($key, $value) => "FOREIGN KEY ($key) REFERENCES {$value['reference']}".(isset($value['on_delete'])?" ON DELETE {$value['on_delete']}":''),
+                array_keys($foreign_keys), $foreign_keys
+            ));
+
+            $uniques = "";
+            if ($this->dbconnection == "sqlite") {
+                $uniques = array_filter($attrs, fn ($attr) => in_array('unique', $attr));
+            
+                $uniques = implode(",\n", array_map(
+                    fn($key) => "UNIQUE ($key)",
+                    array_keys($uniques)
+                ));
+            }
+
+            $primary_key = "";
+            foreach ($attrs as $key => $value) {
+                if (in_array('primary_key', $value)) {
+                    $autoincrement = in_array('auto_increment', $value)&&$this->dbconnection==='sqlite'?" AUTOINCREMENT":"";
+                    $primary_key = "PRIMARY KEY ($key$autoincrement)";
+                    
+                    break;
+                }
+            }
+            
+            $attrs = $this->attributes($attrs);
+
+            $attrs = implode(",\n", array_filter([$attrs, $foreign_keys, $uniques, $primary_key], fn($attr) => $attr != ""));
+            
+            $this->start = "CREATE TABLE IF NOT EXISTS {$this->table} (
+                $attrs
+            )";
+
+            $this->only_start = true;
+
+            return $this;
+        }
+
+        public function drop() {
+            $this->start = "DROP TABLE {$this->table}";
+
+            $this->only_start = true;
+
+            return $this;
+        }
+
+        public function drop_column(string $column) {
+            $this->start = "ALTER TABLE {$this->table} DROP $column";
+
+            $this->only_start = true;
+
+            return $this;
+        }
+
+        public function add_column(string $column, array $attr) {
+            $attr = $this->attributes([$column => $attr]);
+            $this->start = "ALTER TABLE {$this->table} ADD COLUMN $attr";
+
+            $this->only_start = true;
+
+            return $this;
+        }
+
+        public function change_column(string $column, array $attr, ?string $new_column = null) {
+            if ($this->dbconnection === "mysql") {
+                $attr = $this->attributes([$new_column??$column => $attr]);
+                $this->start = "ALTER TABLE {$this->table} CHANGE $column $attr";
+            } else {
+                $sqls = [];
+
+                if ($this->dbconnection === "postgresql" and count($attr) > 0) {
+                    array_push($sqls, "ALTER TABLE {$this->table} ALTER COLUMN $column TYPE {$attr[0]} USING $column::{$attr[0]}");
+
+                    if (isset($attr['default'])) {
+                        array_push($sqls, "ALTER TABLE {$this->table} ALTER COLUMN $column SET DEFAULT {$attr['default']}");
+                    } else {
+                        array_push($sqls, "ALTER TABLE {$this->table} ALTER COLUMN $column DROP DEFAULT");
+                    }
+
+                    if (in_array('not_null', $attr)) {
+                        array_push($sqls, "ALTER TABLE {$this->table} ALTER COLUMN $column SET NOT NULL");
+                    } else {
+                        array_push($sqls, "ALTER TABLE {$this->table} ALTER COLUMN $column DROP NOT NULL");
+                    }
+                }
+
+                if ($new_column) {
+                    array_push($sqls, "ALTER TABLE {$this->table} RENAME COLUMN $column TO $new_column");
+                }
+
+                $this->start = implode(";\n", $sqls);
+            }
+
+            $this->only_start = true;
+            
+            return $this;
+        }
+
+        public function add_foreign_key(string $column, string $reference, ?string $on_delete = null) {
+            $on_delete = $on_delete?" ON DELETE $on_delete":"";
+            $name_constraint = "fk_{$column}_".str_replace(['(', ')'], ['_', ''], $reference);
+            $this->start = "ALTER TABLE {$this->table} ADD CONSTRAINT $name_constraint FOREIGN KEY ($column) REFERENCES $reference$on_delete";
+
+            $this->only_start = true;
+            
+            return $this;
+        }
+
+        public function rename(string $new_name) {
+            $this->start = "ALTER TABLE {$this->table} RENAME TO $new_name";
+            
+            $this->only_start = true;
 
             return $this;
         }
@@ -133,17 +274,41 @@
             return $this;
         }
 
-        public function execute() {
-            $sql = $this->get_query();
+        public function order_by(string $column) {
+            $this->order_by_ = $column;
+
+            return $this;
+        }
+
+        public function desc() {
+            $this->desc_ = true;
+
+            return $this;
+        }
+
+        public function execute(string|null $sql_ = null) {
+            $sql = $sql_??$this->get_query();
 
             if ($this->conn instanceof mysqli) {
                 $res = $this->conn->prepare($sql);
-                $res->execute();
+                return $res->execute();
             } else if ($this->conn instanceof SQLite3) {
-                $this->conn->exec($sql);
+                return $this->conn->exec($sql);
+            } else if ($this->conn instanceof PostgreSql) {
+                $this->pg_result = pg_query($this->conn, $sql);
+                return $this->pg_result !== false;
             }
+        }
 
-            return null;
+        public function save_sql() {
+            $sql = $this->get_query();
+            array_push($this->sqls, "$sql;");
+        }
+
+        public function execute_all() {
+            $sql = implode("\n", $this->sqls);
+            $this->sqls = [];
+            return $this->execute($sql);
         }
 
         public function query() {
@@ -153,6 +318,9 @@
                 $result = mysqli_query($this->conn, $query);                
             } else if ($this->conn instanceof SQLite3) {
                 $result = $this->conn->query($query);
+            } else if ($this->conn instanceof PostgreSql) {
+                $result = pg_query($this->conn, $query);
+                $this->pg_result = $result;
             }
 
             $this->lines = [];
@@ -168,7 +336,7 @@
         }
 
         public function first() {
-            return $this->lines[0];
+            return $this->lines[0]??null;
         }
 
         public function value() {
@@ -180,40 +348,44 @@
             return false;
         }
 
-        protected function fetch_array(SQLite3Result | mysqli_result $result) {
+        protected function fetch_array(SQLite3Result | mysqli_result | PostgreSqlResult $result) {
             if ($result instanceof mysqli_result) {
                 return mysqli_fetch_assoc($result);
             } else if ($result instanceof SQLite3Result) {
                 return $result->fetchArray(SQLITE3_ASSOC);
+            } if ($result instanceof PostgreSqlResult) {
+                return pg_fetch_assoc($result);
             }
 
             return null;
         }
 
         public function get_query() {
-            if (count($this->wheres) > 0)
-                $wheres = " WHERE ".implode(' ', $this->wheres);
-            else
-                $wheres = '';
+            $wheres = count($this->wheres) > 0?" WHERE ".implode(' ', $this->wheres):'';
 
-            if (count($this->ons) > 0)
-                $ons = " ON ".implode(' ON ', $this->ons);
-            else
-                $ons = '';
+            $ons = count($this->ons) > 0?" ON ".implode(' ON ', $this->ons):'';
 
-            $limit = $this->limit_?" LIMIT {$this->limit_}":'';
+            $limit  = $this->limit_?" LIMIT {$this->limit_}":'';
             $offset = $this->limit_?" OFFSET {$this->offset_}":'';
 
-            if ($this->start == 'exists')
-                $sql = "SELECT EXISTS(SELECT 1 FROM {$this->table}$wheres{$limit}{$offset}{$ons})";
-            else
-               $sql = "{$this->start}$wheres{$limit}{$offset}{$ons}";
+            $order_by = $this->order_by_?" ORDER BY {$this->order_by_}":'';
+            $desc     = $this->desc_?" DESC":'';
 
-            $this->table = '';
-            $this->start = '';
-            $this->wheres = [];
-            $this->offset_ = 0;
-            $this->limit_ = null;
+            if ($this->only_start)
+                $sql = $this->start;
+            else {
+                $sql = $this->start == 'exists'?"SELECT EXISTS(SELECT 1 FROM {$this->table}$wheres{$limit}{$offset}{$ons})":"{$this->start}$wheres$order_by$desc$limit$offset$ons";
+            }
+
+            $this->table      = '';
+            $this->start      = '';
+            $this->wheres     = [];
+            $this->ons        = [];
+            $this->offset_    = 0;
+            $this->limit_     = null;
+            $this->order_by_  = null;
+            $this->desc_      = false;
+            $this->only_start = false;
 
             return $sql;
         }
@@ -227,12 +399,43 @@
             return "'$content' {$noerrorsql}";
         }
 
+        public function last_insert_id() {
+            if ($this->conn instanceof mysqli) {
+                return mysqli_insert_id($this->conn);
+            } else if ($this->conn instanceof SQLite3) {
+                return $this->conn->lastInsertRowID();
+            } else if ($this->conn instanceof PostgreSql) {
+                return pg_last_oid($this->pg_result);
+            }
+        }
+
         public function affected_rows() {
             if ($this->conn instanceof mysqli) {
                 return mysqli_affected_rows($this->conn);
             } else if ($this->conn instanceof SQLite3) {
                 return $this->conn->changes();
-            } 
+            } else if ($this->conn instanceof PostgreSql) {
+                return pg_affected_rows($this->pg_result);
+            }
+        }
+
+        public function get_error() {
+            if ($this->conn instanceof mysqli) {
+                return [
+                    "code" => mysqli_errno($this->conn),
+                    "msg"  => mysqli_error($this->conn)
+                ];
+            } else if ($this->conn instanceof SQLite3) {
+                return [
+                    "code" => $this->conn->lastErrorCode(),
+                    "msg"  => $this->conn->lastErrorMsg()
+                ];
+            } else if ($this->conn instanceof PostgreSql) {
+                return [
+                    "code" => null,
+                    "msg"  => pg_last_error($this->conn)
+                ];
+            }
         }
 
         protected function verifysqlinject(string $sql) {
@@ -246,19 +449,19 @@
             $conn = NULL;
 
             try {
-                if ($this->dbconnection == 'mysql') {
-                    $conn = new mysqli(
+                $conn = match ($this->dbconnection) {
+                    'mysql' => new mysqli(
                         $dbhost,
                         $dbuser,
                         $dbpassword,
                         $dbname,
                         $dbport
-                    );
-                } else if ($this->dbconnection == 'sqlite') {
-                    $conn = new SQLite3($dbname);
-                }
+                    ),
+                    'sqlite' => new SQLite3($dbname),
+                    'postgresql' => pg_connect("host=$dbhost dbname=$dbname user=$dbuser password=$dbpassword")
+                };
             } catch (\Throwable $th) {
-                //throw $th;
+                throw $th;
             }
 
             return $conn;
@@ -269,7 +472,9 @@
                 mysqli_close($this->conn);
             } else if ($this->conn instanceof SQLite3) {
                 $this->conn->close();
-            } 
+            } else if ($this->conn instanceof PostgreSql) {
+                pg_close($this->conn);
+            }
         }
     }
 
