@@ -28,6 +28,10 @@
         );
     }
 
+    function hash_(string $data) {
+        return hash('sha256', $data.getenv('SECRETKEY'));
+    }
+
     function __send_file_log(string $content) {
         $file_log = __DIR__.'/storage/log/jc.log';
 

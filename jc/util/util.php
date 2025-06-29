@@ -26,7 +26,7 @@
             if ($is_valid[0]) {
                 $db = db();
 
-                $params['password'] = hash('sha256', $params['password'].getenv('SECRETKEY'));
+                $params['password'] = hash_($params['password']);
 
                 $db->table('user')->insert($params)->execute();
 
@@ -118,7 +118,7 @@
 
             $user = $db->table('user')
                 ->select()
-                ->where('password = '.QBuilder::prepare(hash('sha256', $password.getenv('SECRETKEY'))))
+                ->where('password = '.QBuilder::prepare(hash_($password)))
                 ->and_where("$attr = ".QBuilder::prepare($email_or_username))
                 ->query()
                 ->first();
@@ -175,7 +175,7 @@
 
             $date = new DateTime();
 
-            $token = hash('sha256', self::randomword().getenv('SECRETKEY')); 
+            $token = hash_(self::randomword()); 
 
             $attrs = [
                 'user' => $iduser,
@@ -194,7 +194,7 @@
             ])->where('id = '.QBuilder::prepare($iduser))->execute();
 
             if ($validat) {
-                $tokenrestart = hash('sha256', self::randomword().getenv('SECRETKEY'));
+                $tokenrestart = hash_(self::randomword());
 
                 $db->table('token_restart')->insert([
                     'token' => $token['id'],

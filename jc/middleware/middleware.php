@@ -86,9 +86,9 @@
 
                 $random = Util::randomword();
                 
-                $csrftoken = hash('sha256', $random.getenv('SECRETKEY'));
+                $csrftoken = hash_($random);
 
-                if (isset($_COOKIE['csrftoken']) && $db->table('token')->select()->where('id = '.QBuilder::prepare($_COOKIE['csrftoken']))->query()->exist()) {
+                if (isset($_COOKIE['csrftoken']) && $db->table('token')->select()->where('id = '.QBuilder::prepare($_COOKIE['csrftoken']))->exists()->value()) {
                     $db->table('token')->update([
                         'content' => $csrftoken
                     ])->where('id = '.QBuilder::prepare($_COOKIE['csrftoken']))->execute();

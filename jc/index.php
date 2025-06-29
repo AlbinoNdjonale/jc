@@ -13,6 +13,9 @@
     require __DIR__.'/qbuilder/qbuilder.php';
     require __DIR__.'/pages/pages.php';
     require __DIR__.'/middleware/middleware.php';
+    require __DIR__.'/http/response.php';
+    require __DIR__.'/http/request.php';
+    require __DIR__.'/model/model.php';
 
     use Exception;
     use jc\middleware\Middleware;
@@ -92,9 +95,6 @@
 
         return "$BASEURL$path";
     }
-
-    require __DIR__.'/http/response.php';
-    require __DIR__.'/http/request.php';
 
     class JCRoute {
         protected array $middlewares = [];

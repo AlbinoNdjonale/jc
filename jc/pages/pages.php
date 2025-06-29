@@ -67,9 +67,9 @@
                             $db->table('user')->update([
                                 'is_active' => 0
                             ])->where('id = '.QBuilder::prepare($user['id']))->execute();
+                        
+                            $db->close();
                         }
-
-                        $db->close();
 
                         return new JSONResponse([
                             'detail' => 'logout whit sucess'
