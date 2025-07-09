@@ -232,4 +232,27 @@
                 ][random_int(0, 26)];
             }, range(0, 20)));
         }
+
+        public static function clean_cashe() {
+            $cashe_file = __DIR__."/../storage/cashe/cashe.json";
+
+            while (true) {
+                if (file_exists($cashe_file)) {
+                    $cashe = json_decode(file_get_contents($cashe_file), true);
+                    
+                    $date = new DateTime();
+
+                    foreach ($cashe as $key => $value) {
+                        $value["valid_until"];
+
+                        if ($value["valid_until"] - $date->getTimestamp() <= 0) {
+                           unset($cashe[$key]);
+                        }
+                    }
+
+                    file_put_contents($cashe_file, json_encode($cashe));
+                    sleep(60);
+                }
+            }
+        }
     }

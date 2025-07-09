@@ -2,6 +2,8 @@
 
     namespace jc\qbuilder;
 
+    use DateTime;
+
     use mysqli;
     use mysqli_result;
     use SQLite3;
@@ -26,6 +28,7 @@
         protected int $offset_ = 0;
         protected ?string $order_by_ = null;
         protected bool $desc_ = false;
+        protected int $cashe = 0;
 
         protected bool $only_start = false;
         protected ?PostgreSqlResult $pg_result;
@@ -314,6 +317,27 @@
         public function query() {
             $query = $this->get_query();
 
+            $cashe_file = __DIR__."/../storage/cashe/cashe.json";
+
+            if ($this->cashe) {
+                $key = hash('sha256', $query);
+
+                if (!file_exists($cashe_file)) {
+                    file_put_contents($cashe_file, "{}");
+                }
+
+                $cashe = json_decode(file_get_contents($cashe_file), true);
+
+                if (array_key_exists($key, $cashe)) {
+                    $date = new DateTime();
+                    if ($cashe[$key]["valid_until"] - $date->getTimestamp() > 0) {
+                        $this->lines = $cashe[$key]["value"];
+                        $this->cashe = 0;
+                        return $this;
+                    }
+                }
+            }
+
             if ($this->conn instanceof mysqli) {
                 $result = mysqli_query($this->conn, $query);                
             } else if ($this->conn instanceof SQLite3) {
@@ -326,6 +350,19 @@
             $this->lines = [];
             while ($line = $this->fetch_array($result)) {
                 array_push($this->lines, $line);
+            }
+
+            if ($this->cashe) {
+                $cashe = json_decode(file_get_contents($cashe_file), true);
+
+                $cashe[$key] = [
+                    "value"       => $this->lines,
+                    "valid_until" => (new DateTime())->modify("+{$this->cashe} second")->getTimestamp()
+                ];
+
+                file_put_contents($cashe_file, json_encode($cashe));
+
+                $this->cashe = 0;
             }
 
             return $this;
@@ -436,6 +473,10 @@
                     "msg"  => pg_last_error($this->conn)
                 ];
             }
+        }
+
+        public function use_cashe(int $second) {
+            $this->cashe = $second;
         }
 
         protected function verifysqlinject(string $sql) {
