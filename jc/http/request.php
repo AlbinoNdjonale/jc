@@ -5,12 +5,13 @@
     use Error;
 
     class File {
-        public readonly string $name;
+        protected string $name;
         public readonly string $full_path;
         public readonly int $size;
         public readonly bool $error;
         public readonly string $real_name;
         protected string $tmp_name;
+        protected string $storage = "";
         public static string $upload_file;
 
         public function __construct($attributes) {
@@ -23,9 +24,28 @@
         }
 
         public function save(?string $file_name = null) {
-            $to = $file_name??self::$upload_file."/{$this->name}";
+            $to = $file_name??self::$upload_file."{$this->storage}/{$this->name}";
             
             return move_uploaded_file($this->tmp_name, $to);
+        }
+
+        public function set_name(string $name): static {
+            $this->name = $name;
+            
+            return $this;
+        }
+
+        public function get_name(): string {
+            return $this->name;
+        }
+
+        public function storage(string $storage): static {
+            $this->storage = $storage;
+
+            if (!empty($this->storage))
+                $this->storage = "/{$this->storage}";
+            
+            return $this;
         }
 
         public static function securiti_name(string $name, ?string $in = null): string {
