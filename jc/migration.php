@@ -29,6 +29,10 @@
         return "DATE";
     }
 
+    function datetime(): string {
+        return "DATETIME";
+    }
+
     function not_null(): string {
         return "not_null";
     }
@@ -54,8 +58,8 @@
         "username"    => [varchar(50), not_null()],
         "first_name"  => [varchar(50)],
         "last_name"   => [varchar(50)],
-        "date_joined" => [date_(), not_null(), "default" => "CURRENT_TIMESTAMP"],
-        "last_login"  => [date_()],
+        "date_joined" => [datetime(), not_null(), "default" => "CURRENT_TIMESTAMP"],
+        "last_login"  => [datetime()],
         "is_active"   => [boolean_(), not_null(), "default" => 0],
         "is_admin"    => [boolean_(), not_null()],
         "gender"      => [varchar(1)],
@@ -67,7 +71,7 @@
     define('SCHEMA_TOKEN', [
         "id"          => [integer_(), not_null(), primary_key(), auto_increment()],
         "content"     => [varchar(66), not_null(), unique()],
-        "valid_until" => [date_(), not_null()],
+        "valid_until" => [datetime()],
         "csrf"        => [boolean_(), not_null()],
         "user"        => [integer_(), foreign_key(), "reference" => "user(id)", "on_delete" => "CASCADE"]
     ]);
@@ -75,7 +79,7 @@
     define("SCHEMA_TOKEN_RESTART", [
         "id"          => [integer_(), not_null(), primary_key(), auto_increment()],
         "content"     => [varchar(66), not_null(), unique()],
-        "valid_until" => [date_(), not_null()],
+        "valid_until" => [datetime(), not_null()],
         "token"       => [integer_(), foreign_key(), not_null(), "reference" => "token(id)", "on_delete" => "CASCADE"]
     ]);
     
@@ -86,8 +90,8 @@
 
         $db->table('__migrations')->create([
             "id"         => [integer_(), primary_key(), not_null(), auto_increment()],
-            "name"       => [varchar(30), not_null(), unique()],
-            "created_at" => [date_(), not_null(), "default" => "CURRENT_TIMESTAMP"]
+            "name"       => [varchar(150), not_null(), unique()],
+            "created_at" => [datetime(), not_null(), "default" => "CURRENT_TIMESTAMP"]
         ])->execute();
 
         $last_migration = $db->table('__migrations')

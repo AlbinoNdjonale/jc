@@ -63,8 +63,8 @@
     File::$upload_file = getenv("UPLOADFILE");
 
     class Request implements ArrayAccess {
-        public readonly ?array $post;
-        public readonly array $get;
+        public ?array $post;
+        public array $get;
         public readonly ?array $queryparams;
         public readonly array $cookies;
         public readonly string $method;
@@ -77,7 +77,7 @@
         public readonly string $protocol;
         public readonly string $url_path;
 
-        private readonly array $attributes;
+        protected array $attributes;
 
         public function __construct($attributes) {
             $this->post = $attributes['POST'];
@@ -129,6 +129,34 @@
             }
 
             return $files;
+        }
+
+        public function unset_data(string $attr) {
+            switch ($this->method) {
+                case 'GET':
+                    unset($this->attributes["GET"][$attr]);
+                    $this->get = $this->attributes["GET"];
+                    break;
+                
+                default:
+                    unset($this->attributes["POST"][$attr]);
+                    $this->post = $this->attributes["POST"];
+                    break;
+            }
+        }
+
+        public function set_data(string $attr, $value) {
+            switch ($this->method) {
+                case 'GET':
+                    $this->attributes["GET"][$attr] = $value;
+                    $this->get = $this->attributes["GET"];
+                    break;
+                
+                default:
+                    $this->attributes["POST"][$attr] = $value;
+                    $this->post = $this->attributes["POST"];
+                    break;
+            }
         }
 
         public function offsetSet($_offset, $_value): void {

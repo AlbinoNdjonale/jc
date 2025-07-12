@@ -293,8 +293,13 @@
             $sql = $sql_??$this->get_query();
 
             if ($this->conn instanceof mysqli) {
-                $res = $this->conn->prepare($sql);
-                return $res->execute();
+                $result = $this->conn->multi_query($sql);
+                
+                while ($this->conn->more_results()) {
+                    $this->conn->next_result();
+                }
+
+                return $result;
             } else if ($this->conn instanceof SQLite3) {
                 return $this->conn->exec($sql);
             } else if ($this->conn instanceof PostgreSql) {
@@ -324,6 +329,7 @@
 
                 if (!file_exists($cashe_file)) {
                     file_put_contents($cashe_file, "{}");
+                    chmod($cashe_file, 0666);
                 }
 
                 $cashe = json_decode(file_get_contents($cashe_file), true);
@@ -501,6 +507,10 @@
                     'sqlite' => new SQLite3($dbname),
                     'postgresql' => pg_connect("host=$dbhost dbname=$dbname user=$dbuser password=$dbpassword")
                 };
+
+                if ($conn instanceof SQLite3) {
+                    chmod($dbname, 0666);
+                }
             } catch (\Throwable $th) {
                 throw $th;
             }

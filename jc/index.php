@@ -16,6 +16,7 @@
     require __DIR__.'/http/response.php';
     require __DIR__.'/http/request.php';
     require __DIR__.'/model/model.php';
+    require __DIR__.'/queue/queue.php';
 
     use Exception;
     use jc\middleware\Middleware;

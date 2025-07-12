@@ -221,8 +221,7 @@
             $output = [];
 
             exec("export TEST=true && php $migration", $output, $code);
-            exec("sudo chmod 777 ".DB_TEST, $output);
-
+           
             if ($code != 0) {
                 echo implode("\n", $output);
 

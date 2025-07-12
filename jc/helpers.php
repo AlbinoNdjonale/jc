@@ -35,10 +35,12 @@
     function __send_file_log(string $content) {
         $file_log = __DIR__.'/storage/log/jc.log';
 
-        $hundle = match (file_exists($file_log)) {
-            true => fopen($file_log, 'a'),
-            false => fopen($file_log, 'w'),
-        };
+        if (file_exists($file_log)) {
+            $hundle = fopen($file_log, 'a');
+        } else {
+            $hundle = fopen($file_log, 'w');
+            chmod($file_log, 0666);
+        }
 
         if ($hundle) {
             fwrite($hundle, "$content\n");

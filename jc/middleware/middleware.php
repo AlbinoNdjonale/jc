@@ -8,6 +8,7 @@
     use jc\response\Response;
     use jc\response\Render;
     use jc\util\Util;
+    use jc\Request;
 
     $basehtml = '
         <!DOCTYPE html>
@@ -85,10 +86,10 @@
                 $db = db();
 
                 $random = Util::randomword();
-                
+
                 $csrftoken = hash_($random);
 
-                if (isset($_COOKIE['csrftoken']) && $db->table('token')->select()->where('id = '.QBuilder::prepare($_COOKIE['csrftoken']))->exists()->value()) {
+                if (isset($_COOKIE['csrftoken']) && $db->table('token')->select()->where('id = '.QBuilder::prepare($_COOKIE['csrftoken']))->exists()->query()->value()) {
                     $db->table('token')->update([
                         'content' => $csrftoken
                     ])->where('id = '.QBuilder::prepare($_COOKIE['csrftoken']))->execute();
@@ -112,7 +113,7 @@
             });
 
             return function(callable $view) {
-                return function($request) use ($view) {
+                return function(Request $request) use ($view) {
                     if ($request['METHOD'] != 'GET' && $request['METHOD'] != 'OPTION') {
                         global $basehtml;
 
@@ -129,7 +130,7 @@
                         $db = db();
 
                         $csrftoken = $request['POST']['_csrftoken'];
-                        unset($request['POST']['_csrftoken']);
+                        $request->unset_data('_csrftoken');
 
                         $csrftokenexist = $db->table('token')
                             ->select()
