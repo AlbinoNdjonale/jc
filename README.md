@@ -21,14 +21,28 @@ git clone https://github.com/AlbinoNdjonale/jc.git projecto
 │   ├── index.php
 │   ├── middleware
 │   │   └── middleware.php
+│   ├── model
+│   │   └── model.php
 │   ├── pages
 │   │   └── pages.php
 │   ├── qbuilder
 │   │   └── qbuilder.php
+│   ├── queue
+│   │   ├── push.php
+│   │   └── queue.php
+│   ├── util
+│   │   └── util.php
+│   ├── storage
+│   │   ├── cashe
+│   │   ├── channel_stream
+│   │   ├── log
+│   │   └── queue
 │   ├── http
 │   │   ├── response.php
 │   │   └── request.php
-│   └── util.php
+│   ├── backgroundplain.php
+│   ├── test.php
+│   └── helpers.php
 ├── index.php
 ├── README.md
 ├── .env
@@ -40,11 +54,11 @@ O arquivo ./.env é o arquivo usado para configurar o seu projecto.
 Inicialmente ele contera o seguite conteudo
 
 ```properties
-URL=http://localhost/appname
+DOMAIN=localhost/jc
+
 DEV=true
 ```
 
-O atributo URL representa a url base da applicação.
 O atributo DEV diz se a applicação está no modo de desenvolvimento ao não.
 
 O arquivo ./index.php é o ponto de partida da applicação.
@@ -299,11 +313,43 @@ Todo lugar onde declaramos `{{ $block("contnet") }}` é usado para definir um bl
 
 Como podes ver os blocos deinidos na base foram usados como tag html, observer que as primeiras letras estão a maiusculo para os diferenciar das tags originais.
 
+### Páginas predifinidos
+
+Existem algumas paginas ja predifinidas para você, como a pagina de login.
+
+```php
+$web->route('/auth/login', ['methods' => ['GET', 'POST'], 'name' => 'login'], Pages::login('login'));
+$web->get('/auth/logout', ['name' => 'logout'], Pages::logout('login'));
+
+$api->route('/token', ['methods' => ['POST', 'DELETE']], Pages::token());
+$api->get('/token/restart/{token_restart}', [], Pages::restart_token());
+```
+
+### Upload de arquivos
+
+O argumento `$requests` que é passado como parametro nos endpoints contem o metdo `get_files` que retorna um os ficheiros enviados na requisição, abaixo um exemplo de como salvar os arquivos, mas para isso deve-se definir a variavel de ambiente UPLOADFILE que deve ser o caminho da pasta onde serão salvos os arquivos.
+
+```php
+$web->route('/upload', ['name' => 'upload', 'methods' => ["GET", "POST"]], function(Request $request) {
+      if ($request->method === "POST") {
+         foreach ($request->get_files() as $key => $file) {
+            $file->save();
+         }
+      }
+      
+      return new Render('upload');
+   });
+```
+
+Opcionalmente o metodo save recebe um paramento indicando o camiho absoluto onde o arquivo deve ser salvo.
+Alem do metodo save também temos o metdo storage que recebe como parametro o caminho onde queremos salvar o nosso arquivo mas dentro da pasta definida em UPLOADFILE,
+temos o metodo set_name para alterar apenas o nome do arquivo, e por ultimo temos o metodo get_name.
+
 ## Quase WebSocket
 
 Quem não tem cão, caça como gato :) :).
 
-Em php puro infelismente não temos as maravilhas do que é websocket, criamos uma implementação de streaming que tenta a maximo imitar o comportamento do websockt
+Em php puro infelismente não temos as maravilhas do que é websocket, criamos uma implementação de streaming que tenta ao maximo imitar o comportamento do websockt
 
 ### RealTime
 
@@ -693,6 +739,40 @@ Veja a baixo a lista de condições.
 - `minlength-x`. O campo precisa ter um comprimento de no minimo x, sendo x qualquer valor inteiro
 - `maxlength-x`. O campo precisa ter um comprimento de no maximo x, sendo x qualquer valor inteiro
 
+## Modelos
+
+Use modelos para mapear dados em Objetos. exemplo a baixo.
+
+```php
+<?php
+    use jc\model\Model;
+
+    class Enterprise extends Model {
+        protected static ?string $table_name = "enterprise";
+
+        # Definindos os atributos do modelo
+        public ?int $id;
+        public string $name;
+    }
+
+    $db = db();
+
+    $enterprise = new Enterprise("GTecnology");
+    $enterprise->save($db);
+
+    $enterprise->name = "Novo nome";
+    $enterprise->save($db);
+    $nterprise->delete($db);
+
+    $enterprise = Enterprise::get(1);
+
+    if (!$enterprise) {
+
+    }
+
+
+```
+
 ## Middlewares
 
 Middlewares são ações executadas antes e/ou depois de uma pagina.
@@ -767,25 +847,7 @@ DATABASEUSER=root
 DATABASEPORT=3306
 ```
 
-também é necessario definir as seguintes tabelas na sua base de dados.
-
-```sql
-create table user (
-    `id` INTEGER NOT NULL AUTO_INCREMENT,
-    `username` VARCHAR(50) NOT NULL,
-    `first_name` VARCHAR(50),
-    `last_name` VARCHAR(50),
-    `date_joined` DATE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `last_login` DATE,
-    `is_active` BOOLEAN NOT NULL DEFAULT 0,
-    `is_admin` BOOLEAN NOT NULL,
-    `gender` ENUM('M', 'F'),
-    `birth` DATE,
-    `email` VARCHAR(250) NOT NULL,
-    `password` VARCHAR(66) NOT NULL,
-    PRIMARY KEY (`id`)
-);
-```
+também é necessario definir algumas tabelas na sua base de dados, Falaremos mais sobre tais tabelas na sessão `Migrations`.
 
 #### csrftoken
 
@@ -807,3 +869,259 @@ Este middleware cria um identificador global para ser usado nos templates, este 
 #### authuser
 
 Este middleware analiza os dados enviados pelo usuario e tenta autenticar o usuário com os mesmos dados, ele cria o identificador global `$user` para ser usado nos templates.
+
+#### login_required
+
+Este middleware é usado para restringir o acesso a uma pagina a pessoas logadas, ele deve ser utilizado em conjunto com o middleware `authuser`.
+
+## Processamento em segundo plano
+
+Em algum momento tu podes precisar de processar alguma informação em sua aplicação, para resolver isto basta cria uma pasta que contera todos os arquivos php a serem executados em segundo plano, seus nomes devem sempre começar com `func_`, apos ter feito isso basta rodar o seguinte comando.
+
+```bash
+php jc/backgroundplain.php /suapasta
+```
+
+## Cashe
+
+Voltando a falar sobre o QBuilder, tu podes usar cashe ao fazer uma consulta.
+
+```php
+$db->use_cashe(60);
+```
+
+O método use_cashe recebe como parametro um numero que representa o tempo em segundos que o cashe será valido.
+
+Sempre que tu usares cashe, deves te lembrar de criares um processo em segundo plano para limpar o cashe de tempo em tempo. basta criar um arquivo na sua pasta de processos e colocar o conteudo seguinte.
+
+```php
+<?php
+
+    require 'jc/util/util.php';
+
+    use jc\util\Util;
+
+    Util::clean_cashe();
+```
+
+## Queue
+
+É possivel usar as Queues para fazer processos diferentes se comunicarem, diminuir a carga do servidor fazendo com que alguns serviços fiquem esperando na Queue, abaixo exemplo de um endpoint que manda informações na queue a cada requisição
+
+```php
+use jc\queue\Queue;
+
+$queue = new Queue("id da queue");
+$queue->push(json_encode($request->data()));
+```
+
+depois disso você deve criar um processo em segundo plano para consumir a queue, exemplo abaixo
+
+```php
+<?php
+
+    require 'jc/qbuilder/qbuilder.php';
+    require 'jc/helpers.php';
+    require 'jc/queue/queue.php';
+
+    use jc\queue\Queue;
+
+    up_env();
+
+    (new Queue("id da queue"))->consumer(function (array $items) {
+        $db = db();
+
+        foreach ($items as $item) {
+            $db->table("uuid")->insert(json_decode($item, true))->save_sql();
+        }
+
+        $db->execute_all();
+
+        $db->close();
+    }, 6);
+```
+
+## CQRS
+
+Use duas base de dados para segregar as responsabilidades de escrita e leitura, tu deves definir a variavel de ambiente cqrs como true.
+
+ao usares cqrs deves criar um processo em segundo plano que deve sincronizar as bases de dados, abaixo o exemplo de arquivo.
+
+```php
+<?php
+
+    require 'jc/helpers.php';
+    require 'jc/queue/queue.php';
+    require 'jc/util/util.php';
+    require 'jc/qbuilder/qbuilder.php';
+
+    use jc\util\Util;
+
+    Util::sync_db();
+```
+
+## Migrations
+
+Aqui você escreve as usas proprias migrations, mas não e sql e sim em php. abaixo tem o exemplo de um arquivo de migration
+
+```php
+<?php
+
+    require __DIR__."/../jc/migration.php";
+
+    use jc\qbuilder\QBuilder;
+                        
+    $migrations = [
+        "create user" => [
+            fn(QBuilder $db) => $db->table("user")->create([...SCHEMA_USER])
+        ],
+
+        "Configure Token" => [
+            fn(QBuilder $db) => $db->table("token")->create([...SCHEMA_TOKEN]),
+
+            fn(QBuilder $db) => $db->table("token_restart")->create([...SCHEMA_TOKEN_RESTART])
+        ],
+
+        "Create table publich" => [
+            fn(QBuilder $db) => $db->table("publich")->create([
+                "id"      => [integer_(), primary_key(), not_null(), auto_increment()],
+                "content" => [text(), not_null()],
+                "user"    => [integer_(), foreign_key(), not_null(), "reference" => "user(id)", "on_delete" => "CASCADE"]
+            ])
+        ],
+
+        "Rename table publich => post" => [
+            fn(QBuilder $db) => $db->table('publich')->rename('post')
+        ],
+
+        "Add column date to table post" => [
+            fn(QBuilder $db) => $db->table('post')->add_column('date', [date_(), not_null(), "default" => "CURRENT_TIMESTAMP"])
+        ],
+
+        "Change column date => created_at to table post" => [
+            fn(QBuilder $db) => $db->table('post')->change_column('date', [date_(), not_null(), "default" => "CURRENT_TIMESTAMP"], 'created_at')
+        ],
+
+        "Drop column created_at from table post" => [
+            fn(QBuilder $db) => $db->table('post')->drop_column('created_at')
+        ],
+
+        "Drop table post" => [
+            fn(QBuilder $db) => $db->table("post")->drop()
+        ],
+
+        "Create table uuid" => [
+            fn(QBuilder $db) => $db->table("uuid")->create([
+                "id"      => [varchar(15), primary_key(), not_null()],
+                "content" => [varchar(100), not_null()]
+            ])
+        ]
+    ];
+
+    run_migration($migrations);
+
+```
+
+A parte principal do arquivo acima é a funcão `run_migration` que recebe como parametro um array associativo contendo as suas migrações, onde a chave indica o nome da migração e o valor é um array onde cada elemento é uma função que executa uma instrução na base de dados, tu deves ter reparado nos novos metodos da classe QBuilder, como o create usado para criar tabelas, ele recebe como parametro um array associativo onde as chaves representam um atributo da tabela e o valor um array contendo as especificações de cada produto, por exemplo `(["id" => [integer_(), not_null(), primary_key(), auto_increment()]])`, a ordem não importa, desde que o tipo seja o primeiro item.
+
+Lembra quando falamos que são necessárias algumas tabelas para que algums middlewares funcionem?, bem essas tabelas são as tabelas de usuário, token e restart_token, a estrutura delas já está definida em constantes e basta passalas como argumento no metodo create, ex: create([...SCHEMA_USER])
+
+```bash
+php file_migration.php
+```
+
+## Tests
+
+Para poderes testar a sua aplicação é necessário definir a variavel de ambiente MIGRATION, o seu valor deve ser o caminho que aponta para o seu arquivo de migration.
+
+Temos a classe de testes que você usara para testar suas aplicações, abaixo exemplo de um codigo de tests
+
+```php
+<?php
+
+    require __DIR__.'/../jc/test.php';
+
+    Request::set_default_headers([
+        "Content-Type" => "application/json"
+    ]);
+    
+    Request::set_base_uri("http://localhost/jc");
+
+    
+    class TestCaseUser extends TestCase {
+        public string $user_email = "albinondjonale@gmail.com";
+        public int $user_id;
+        
+        public function set_up() {
+            $this->user_email = "albinondjonale@gmail.com";
+
+            $response_create_user = Request::post("/api/users", [
+                "username" => "Albino Ndjonale",
+                "email"    => $this->user_email,
+                "password" => "123456789",
+                "is_admin" => 1
+            ]);
+
+            $response_user = Request::get($response_create_user->headers["location"]);
+            $this->user_id = $response_user->json()["id"];
+        }
+
+        public function start() {
+            
+            $this->add_test('create user', function() {
+                $response = Request::post("/api/users", [
+                    "username" => "Albino Ndjonale",
+                    "email"    => "albinondjonale1@gmail.com",
+                    "password" => "123456789",
+                    "is_admin" => 0
+                ]);
+
+                assert_equal($response->status_code, 201);
+            });
+
+            $this->add_test('create user with bad request', function() {
+                $response = Request::post("/api/users", [
+                    "username" => "Albino Ndjonale",
+                    "email"    => "albinondjonale2@gmail.com",
+                    "is_admin" => 0
+                ]);
+
+                assert_equal($response->status_code, 400);
+            });
+
+            $this->add_test('create user with email duplicated', function() {
+                $response = Request::post("/api/users", [
+                    "username" => "Albino Ndjonale",
+                    "email"    => $this->user_email,
+                    "password" => "123456789",
+                    "is_admin" => 0
+                ]);
+
+                assert_equal($response->status_code, 400);
+            });
+
+            $this->add_test('list users', function() {
+                $response = Request::get("/api/users");
+                
+                assert_equal($response->status_code, 200);
+            });
+
+            $this->add_test('get user', function() {
+                $response = Request::get("/api/users/{$this->user_id}");
+                
+                assert_equal($response->status_code, 200);
+            });
+
+            $this->add_test('get user not exist', function() {
+                $response = Request::get("/api/users/1000");
+                
+                assert_equal($response->status_code, 404);
+            });
+        }
+    }
+
+    new TestCaseUser("Test User");
+
+    TestCase::run();
+
+```
