@@ -17,14 +17,15 @@
         exit(0);
     }
 
-    function db(): QBuilder {
+    function db(bool $nocqrs = false, bool $write = false): QBuilder {
         return new QBuilder(
             getenv('TEST')=='true'?"sqlite":getenv('DATABASE'),
-            getenv('TEST')=='true'?__DIR__.'/../'.DB_TEST:getenv('DATABASENAME'),
+            getenv('TEST')=='true'?__DIR__.'/../'.DB_TEST:(getenv('DATABASENAME').($write?"_write":"")),
             getenv('DATABASEPASSWORD'),
             getenv('DATABASEHOST'),
             getenv('DATABASEUSER'),
-            (int) getenv('DATABASEPORT')
+            (int) getenv('DATABASEPORT'),
+            $nocqrs?false:(getenv('CQRS') == 'true')
         );
     }
 

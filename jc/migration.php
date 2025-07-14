@@ -84,7 +84,9 @@
     ]);
     
     function run_migration(array $migrations) {
-        $db    = db();
+        global $argv;
+
+        $db    = db(true, isset($argv[1])?$argv[1]=="write":false);
         $error = 0;
         $migrations_executed = 0;
 

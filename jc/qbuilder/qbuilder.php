@@ -10,12 +10,15 @@
     use SQLite3Result;
     use PgSql\Connection as PostgreSql;
     use PgSql\Result as PostgreSqlResult;
+    use jc\queue\Queue;
     use Error;
 
     define('NOERRORSQL', 'no sql injection');
 
     class QBuilder {
         protected mysqli|SQLite3|PostgreSql|null $conn;
+        protected mysqli|SQLite3|PostgreSql|null $connwrite;
+        protected mysqli|SQLite3|PostgreSql|null $last_conn;
         protected string $dbconnection;
         protected array $lines = [];
         protected array $sqls = [];
@@ -29,11 +32,12 @@
         protected ?string $order_by_ = null;
         protected bool $desc_ = false;
         protected int $cashe = 0;
+        protected bool $use_write = false;
 
         protected bool $only_start = false;
         protected ?PostgreSqlResult $pg_result;
 
-        public function __construct(string $dbconnection, string $dbname, ?string $dbpassword = null, ?string $dbhost = null, ?string $dbuser = null, ?int $dbport = null) {
+        public function __construct(string $dbconnection, string $dbname, ?string $dbpassword = null, ?string $dbhost = null, ?string $dbuser = null, ?int $dbport = null, bool $cqrs = false) {
             $this->dbconnection = $dbconnection;
 
             $this->conn = $this->connect(
@@ -43,6 +47,16 @@
                 $dbuser,
                 $dbport
             );
+
+            $this->connwrite = $cqrs?$this->connect(
+                "{$dbname}_write",
+                $dbpassword,
+                $dbhost,
+                $dbuser,
+                $dbport
+            ):$this->conn;
+
+            $this->last_conn = $this->conn;
             
         }
 
@@ -290,22 +304,33 @@
         }
 
         public function execute(string|null $sql_ = null) {
+            $res = false;
             $sql = $sql_??$this->get_query();
 
-            if ($this->conn instanceof mysqli) {
-                $result = $this->conn->multi_query($sql);
+            if ($this->connwrite instanceof mysqli) {
+                $result = $this->connwrite->multi_query($sql);
                 
-                while ($this->conn->more_results()) {
-                    $this->conn->next_result();
+                while ($this->connwrite->more_results()) {
+                    $this->connwrite->next_result();
                 }
 
-                return $result;
-            } else if ($this->conn instanceof SQLite3) {
-                return $this->conn->exec($sql);
-            } else if ($this->conn instanceof PostgreSql) {
-                $this->pg_result = pg_query($this->conn, $sql);
-                return $this->pg_result !== false;
+                $res = $result;
+            } else if ($this->connwrite instanceof SQLite3) {
+                $res = $this->connwrite->exec($sql);
+            } else if ($this->connwrite instanceof PostgreSql) {
+                $this->pg_result = pg_query($this->connwrite, $sql);
+                $res = $this->pg_result !== false;
             }
+
+            $this->last_conn = $this->connwrite;
+
+            if ($res && $this->conn !== $this->connwrite) {
+                if (trim($sql)[-1] != ";")
+                    $sql .= ";";
+                (new Queue("__cqrs"))->push(base64_encode($sql));
+            }
+
+            return $res;
         }
 
         public function save_sql() {
@@ -344,14 +369,19 @@
                 }
             }
 
-            if ($this->conn instanceof mysqli) {
-                $result = mysqli_query($this->conn, $query);                
-            } else if ($this->conn instanceof SQLite3) {
-                $result = $this->conn->query($query);
-            } else if ($this->conn instanceof PostgreSql) {
-                $result = pg_query($this->conn, $query);
+            $conn = $this->use_write?$this->connwrite:$this->conn;
+            $this->use_write = false;
+
+            if ($conn instanceof mysqli) {
+                $result = mysqli_query($conn, $query);                
+            } else if ($conn instanceof SQLite3) {
+                $result = $conn->query($query);
+            } else if ($conn instanceof PostgreSql) {
+                $result = pg_query($conn, $query);
                 $this->pg_result = $result;
             }
+
+            $this->last_conn = $conn;
 
             $this->lines = [];
             while ($line = $this->fetch_array($result)) {
@@ -443,46 +473,51 @@
         }
 
         public function last_insert_id() {
-            if ($this->conn instanceof mysqli) {
-                return mysqli_insert_id($this->conn);
-            } else if ($this->conn instanceof SQLite3) {
-                return $this->conn->lastInsertRowID();
-            } else if ($this->conn instanceof PostgreSql) {
+            if ($this->connwrite instanceof mysqli) {
+                return mysqli_insert_id($this->connwrite);
+            } else if ($this->connwrite instanceof SQLite3) {
+                return $this->connwrite->lastInsertRowID();
+            } else if ($this->connwrite instanceof PostgreSql) {
                 return pg_last_oid($this->pg_result);
             }
         }
 
         public function affected_rows() {
-            if ($this->conn instanceof mysqli) {
-                return mysqli_affected_rows($this->conn);
-            } else if ($this->conn instanceof SQLite3) {
-                return $this->conn->changes();
-            } else if ($this->conn instanceof PostgreSql) {
+            if ($this->last_conn instanceof mysqli) {
+                return mysqli_affected_rows($this->last_conn);
+            } else if ($this->last_conn instanceof SQLite3) {
+                return $this->last_conn->changes();
+            } else if ($this->last_conn instanceof PostgreSql) {
                 return pg_affected_rows($this->pg_result);
             }
         }
 
         public function get_error() {
-            if ($this->conn instanceof mysqli) {
+            if ($this->last_conn instanceof mysqli) {
                 return [
-                    "code" => mysqli_errno($this->conn),
-                    "msg"  => mysqli_error($this->conn)
+                    "code" => mysqli_errno($this->last_conn),
+                    "msg"  => mysqli_error($this->last_conn)
                 ];
-            } else if ($this->conn instanceof SQLite3) {
+            } else if ($this->last_conn instanceof SQLite3) {
                 return [
-                    "code" => $this->conn->lastErrorCode(),
-                    "msg"  => $this->conn->lastErrorMsg()
+                    "code" => $this->last_conn->lastErrorCode(),
+                    "msg"  => $this->last_conn->lastErrorMsg()
                 ];
-            } else if ($this->conn instanceof PostgreSql) {
+            } else if ($this->last_conn instanceof PostgreSql) {
                 return [
-                    "code" => null,
-                    "msg"  => pg_last_error($this->conn)
+                    "code" => (int) empty(pg_last_error($this->last_conn)),
+                    "msg"  => pg_last_error($this->last_conn)
                 ];
             }
         }
 
         public function use_cashe(int $second) {
             $this->cashe = $second;
+        }
+
+        public function read_in_write() {
+            $this->use_write = true;
+            return $this;
         }
 
         protected function verifysqlinject(string $sql) {

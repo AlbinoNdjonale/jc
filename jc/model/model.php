@@ -112,13 +112,15 @@
             }
 
             $register = $db
+                ->read_in_write()
                 ->table(static::$table_name)
                 ->select()
                 ->where(self::cond($this->{static::$primary_key}))
                 ->query()
                 ->first();
 
-            $this->init($register);
+            if ($register)
+                $this->init($register);
         }
 
         public function delete(QBuilder $db) {

@@ -6,6 +6,7 @@
     use jc\response\JSONResponse;
     use jc\response\RedirectResponse;
     use jc\response\Render;
+    use jc\queue\Queue;
 
     class Util {
         protected static $user = null;
@@ -254,5 +255,17 @@
                     sleep(60);
                 }
             }
+        }
+
+        public static function sync_db(int $time = 6) {
+            up_env();
+            
+            (new Queue("__cqrs"))->consumer(function (array $items) {
+                $db = db(true);
+
+                $db->execute(implode(PHP_EOL, array_map(fn($item) => base64_decode($item), $items)));
+
+                $db->close();
+            }, $time);
         }
     }
