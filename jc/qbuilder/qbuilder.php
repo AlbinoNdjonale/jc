@@ -447,7 +447,7 @@
             if ($this->only_start)
                 $sql = $this->start;
             else {
-                $sql = $this->start == 'exists'?"SELECT EXISTS(SELECT 1 FROM {$this->table}$wheres{$limit}{$offset}{$ons})":"{$this->start}$wheres$order_by$desc$limit$offset$ons";
+                $sql = $this->start == 'exists'?"SELECT EXISTS(SELECT 1 FROM {$this->table}{$ons}$wheres{$limit}{$offset})":"{$this->start}$ons$wheres$order_by$desc$limit$offset";
             }
 
             $this->table      = '';

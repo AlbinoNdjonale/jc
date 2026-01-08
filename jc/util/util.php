@@ -217,7 +217,7 @@
                 return $response;
             }
 
-            setcookie('token', $token['content'], 0, '/');
+            setcookie('token', $token['content'], time()+60*60*24*30*3, '/');
             $db->close();
 
             return null;
