@@ -53,7 +53,7 @@
         return "unique";
     }
 
-    define('SCHEMA_USER', [
+    const SCHEMA_USER = [
         "id"          => [integer_(), primary_key(), not_null(), auto_increment()],
         "username"    => [varchar(50), not_null()],
         "first_name"  => [varchar(50)],
@@ -66,22 +66,22 @@
         "birth"       => [date_()],
         "email"       => [varchar(250), not_null(), unique()],
         "password"    => [varchar(66), not_null()]
-    ]);
+    ];
 
-    define('SCHEMA_TOKEN', [
+    const SCHEMA_TOKEN = [
         "id"          => [integer_(), not_null(), primary_key(), auto_increment()],
         "content"     => [varchar(66), not_null(), unique()],
         "valid_until" => [datetime()],
         "csrf"        => [boolean_(), not_null()],
         "user"        => [integer_(), foreign_key(), "reference" => "user(id)", "on_delete" => "CASCADE"]
-    ]);
+    ];
 
-    define("SCHEMA_TOKEN_RESTART", [
+    const SCHEMA_TOKEN_RESTART = [
         "id"          => [integer_(), not_null(), primary_key(), auto_increment()],
         "content"     => [varchar(66), not_null(), unique()],
         "valid_until" => [datetime(), not_null()],
         "token"       => [integer_(), foreign_key(), not_null(), "reference" => "token(id)", "on_delete" => "CASCADE"]
-    ]);
+    ];
     
     function run_migration(array $migrations) {
         global $argv;

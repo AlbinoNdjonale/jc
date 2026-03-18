@@ -13,7 +13,7 @@
     use jc\queue\Queue;
     use Error;
 
-    define('NOERRORSQL', 'no sql injection');
+    const NOERRORSQL = 'no sql injection';
 
     class QBuilder {
         protected mysqli|SQLite3|PostgreSql|null $conn;
@@ -82,7 +82,7 @@
         }
 
         public function where(...$wheres) {
-            $or = count($this->wheres) == 0?'':'or ';
+            $or = \count($this->wheres) == 0?'':'or ';
 
             return $this->_where($or, ...$wheres);
         }
@@ -149,11 +149,11 @@
         protected function attributes(array $attrs) {
             return implode(",\n", array_map(
                 fn($key, $value) => (
-                    "`$key` ".((in_array('auto_increment', $value)&&$this->dbconnection==='postgresql')?"SERIAL":$value[0])
-                    .(in_array('not_null', $value)?' NOT NULL':'')
-                    .(in_array('auto_increment', $value)&&$this->dbconnection==='mysql'?" AUTO_INCREMENT":"")
+                    "`$key` ".((\in_array('auto_increment', $value)&&$this->dbconnection==='postgresql')?"SERIAL":$value[0])
+                    .(\in_array('not_null', $value)?' NOT NULL':'')
+                    .(\in_array('auto_increment', $value)&&$this->dbconnection==='mysql'?" AUTO_INCREMENT":"")
                     .(isset($value['default'])?" DEFAULT {$value['default']}":'')
-                    .(in_array('unique', $value)&&$this->dbconnection==='sqlite'?" UNIQUE":"")
+                    .(\in_array('unique', $value)&&$this->dbconnection!=='sqlite'?" UNIQUE":"")
                 ),
                 array_keys($attrs),
                 $attrs
@@ -161,7 +161,7 @@
         }
 
         public function create(array $attrs) {
-            $foreign_keys = array_filter($attrs, fn ($attr) => in_array('foreign_key', $attr));
+            $foreign_keys = array_filter($attrs, fn ($attr) => \in_array('foreign_key', $attr));
             
             $foreign_keys = implode(",\n", array_map(
                 fn($key, $value) => "FOREIGN KEY ($key) REFERENCES {$value['reference']}".(isset($value['on_delete'])?" ON DELETE {$value['on_delete']}":''),
@@ -170,7 +170,7 @@
 
             $uniques = "";
             if ($this->dbconnection == "sqlite") {
-                $uniques = array_filter($attrs, fn ($attr) => in_array('unique', $attr));
+                $uniques = array_filter($attrs, fn ($attr) => \in_array('unique', $attr));
             
                 $uniques = implode(",\n", array_map(
                     fn($key) => "UNIQUE ($key)",
@@ -180,8 +180,8 @@
 
             $primary_key = "";
             foreach ($attrs as $key => $value) {
-                if (in_array('primary_key', $value)) {
-                    $autoincrement = in_array('auto_increment', $value)&&$this->dbconnection==='sqlite'?" AUTOINCREMENT":"";
+                if (\in_array('primary_key', $value)) {
+                    $autoincrement = \in_array('auto_increment', $value)&&$this->dbconnection==='sqlite'?" AUTOINCREMENT":"";
                     $primary_key = "PRIMARY KEY ($key$autoincrement)";
                     
                     break;
@@ -233,7 +233,7 @@
             } else {
                 $sqls = [];
 
-                if ($this->dbconnection === "postgresql" and count($attr) > 0) {
+                if ($this->dbconnection === "postgresql" and \count($attr) > 0) {
                     array_push($sqls, "ALTER TABLE {$this->table} ALTER COLUMN $column TYPE {$attr[0]} USING $column::{$attr[0]}");
 
                     if (isset($attr['default'])) {
@@ -242,7 +242,7 @@
                         array_push($sqls, "ALTER TABLE {$this->table} ALTER COLUMN $column DROP DEFAULT");
                     }
 
-                    if (in_array('not_null', $attr)) {
+                    if (\in_array('not_null', $attr)) {
                         array_push($sqls, "ALTER TABLE {$this->table} ALTER COLUMN $column SET NOT NULL");
                     } else {
                         array_push($sqls, "ALTER TABLE {$this->table} ALTER COLUMN $column DROP NOT NULL");
@@ -359,7 +359,7 @@
 
                 $cashe = json_decode(file_get_contents($cashe_file), true);
 
-                if (array_key_exists($key, $cashe)) {
+                if (\array_key_exists($key, $cashe)) {
                     $date = new DateTime();
                     if ($cashe[$key]["valid_until"] - $date->getTimestamp() > 0) {
                         $this->lines = $cashe[$key]["value"];
@@ -417,7 +417,7 @@
         }
 
         public function exist() {
-            if (count($this->lines) > 0) return true;
+            if (\count($this->lines) > 0) return true;
             return false;
         }
 
@@ -434,9 +434,9 @@
         }
 
         public function get_query() {
-            $wheres = count($this->wheres) > 0?" WHERE ".implode(' ', $this->wheres):'';
+            $wheres = \count($this->wheres) > 0?" WHERE ".implode(' ', $this->wheres):'';
 
-            $ons = count($this->ons) > 0?" ON ".implode(' ON ', $this->ons):'';
+            $ons = \count($this->ons) > 0?" ON ".implode(' ON ', $this->ons):'';
 
             $limit  = $this->limit_?" LIMIT {$this->limit_}":'';
             $offset = $this->limit_?" OFFSET {$this->offset_}":'';

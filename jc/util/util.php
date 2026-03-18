@@ -65,27 +65,27 @@
 
                 $terms = explode('|', $value);
 
-                if (in_array('required', $terms) && !isset($values[$key])) array_push($messages[$key], 'this field is required');
+                if (\in_array('required', $terms) && !isset($values[$key])) array_push($messages[$key], 'this field is required');
                 if (isset($values[$key])) {
-                    if (in_array('string', $terms) && !is_string($values[$key])) array_push($messages[$key], 'this field must be \'string\'');
-                    if (in_array('int', $terms) && !is_int($values[$key])) array_push($messages[$key], 'this field must be \'integer\'');
-                    if (in_array('float', $terms) && !is_float($values[$key])) array_push($messages[$key], 'this field must be \'float\'');
-                    if (in_array('bool', $terms) && !is_bool($values[$key])) array_push($messages[$key], 'this field must be \'boolean\'');
-                    if (preg_match('/enum-[(](.*?)[)]/', $value, $matches) && !in_array((string) $values[$key], explode(',', $matches[1]))) array_push($messages[$key], 'this field must be in \''.$matches[1].'\'');
+                    if (\in_array('string', $terms) && !\is_string($values[$key])) array_push($messages[$key], 'this field must be \'string\'');
+                    if (\in_array('int', $terms) && !\is_int($values[$key])) array_push($messages[$key], 'this field must be \'integer\'');
+                    if (\in_array('float', $terms) && !\is_float($values[$key])) array_push($messages[$key], 'this field must be \'float\'');
+                    if (\in_array('bool', $terms) && !\is_bool($values[$key])) array_push($messages[$key], 'this field must be \'boolean\'');
+                    if (preg_match('/enum-[(](.*?)[)]/', $value, $matches) && !\in_array((string) $values[$key], explode(',', $matches[1]))) array_push($messages[$key], 'this field must be in \''.$matches[1].'\'');
 
-                    if (is_string($values[$key])) {
-                        if (!in_array('blank', $terms) && trim($values[$key]) == '') array_push($messages[$key], 'this field can\'t be \'blanck\'');
-                        if (in_array('is_email', $terms) && !(preg_match("/^[a-z0-9]+@[a-z]+\.[a-z]+[a-z\.]*[^\.]$/", $values[$key]))) array_push($messages[$key], 'this field must be \'email\'');
-                        if (preg_match("/[|]length-(\d+)[|]/", "|$value|", $matches) && ((int) $matches[1]) != strlen($values[$key])) array_push($messages[$key], 'field\'s length must be equal to \''.$matches[1].'\'');
-                        if (preg_match("/[|]maxlength-(\d+)[|]/", "|$value|", $matches) && !(((int) $matches[1]) >= strlen($values[$key]))) array_push($messages[$key], 'field\'s length must be equal to or less to \''.$matches[1].'\'');
-                        if (preg_match("/[|]minlength-(\d+)[|]/", "|$value|", $matches) && !(((int) $matches[1]) <= strlen($values[$key]))) array_push($messages[$key], 'field\'s length must be equal to or larger to \''.$matches[1].'\'');
+                    if (\is_string($values[$key])) {
+                        if (!\in_array('blank', $terms) && trim($values[$key]) == '') array_push($messages[$key], 'this field can\'t be \'blanck\'');
+                        if (\in_array('is_email', $terms) && !(preg_match("/^(?=.{1,64}@.{3,255}$)([a-zA-Z0-9!#$%&'*+\/=?^_`{|}~-]+(\.[a-zA-Z0-9!#$%&'*+\/=?^_`{|}~-]+)*)@([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/", $values[$key]))) array_push($messages[$key], 'this field must be \'email\'');
+                        if (preg_match("/[|]length-(\d+)[|]/", "|$value|", $matches) && ((int) $matches[1]) != \strlen($values[$key])) array_push($messages[$key], 'field\'s length must be equal to \''.$matches[1].'\'');
+                        if (preg_match("/[|]maxlength-(\d+)[|]/", "|$value|", $matches) && !(((int) $matches[1]) >= \strlen($values[$key]))) array_push($messages[$key], 'field\'s length must be equal to or less to \''.$matches[1].'\'');
+                        if (preg_match("/[|]minlength-(\d+)[|]/", "|$value|", $matches) && !(((int) $matches[1]) <= \strlen($values[$key]))) array_push($messages[$key], 'field\'s length must be equal to or larger to \''.$matches[1].'\'');
                     }
                 }
 
-                if (count($messages[$key]) == 0) unset($messages[$key]);
+                if (\count($messages[$key]) == 0) unset($messages[$key]);
             }
 
-            return [count($messages) == 0, $messages];
+            return [\count($messages) == 0, $messages];
         }
 
         public static function login(array $data, $validat, $templa_tename = '') {

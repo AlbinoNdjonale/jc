@@ -89,7 +89,7 @@
         if (!isset($routes_names[$name]))
             throw new Exception("ROUTE '$name' IS NOT DEFINED", 1);
 
-        $path = is_string($routes_names[$name])?$routes_names[$name]:$routes_names[$name][$idx];
+        $path = \is_string($routes_names[$name])?$routes_names[$name]:$routes_names[$name][$idx];
 
         foreach ($params as $key => $value)
             $path = str_replace("{{$key}}", $value, $path);
@@ -125,9 +125,9 @@
             if (!isset($params['methods']))
                 $params['methods'] = ['GET', 'POST', 'DELETE', 'PUT'];
             
-            $params['middlewares'] = $params['middlewares'] ?? [];
+            $params['middlewares'] ??= [];
 
-            foreach (array_merge(array_reverse($params['middlewares']), array_reverse($this->middlewares)) as $middleware) {
+            foreach ([...array_reverse($params['middlewares']), ...array_reverse($this->middlewares)] as $middleware) {
                 $view = $middleware($view);
             }
 
@@ -181,7 +181,7 @@
 
         public function include_route(JCRoute $route, string $prefix = '') {         
             foreach ($route->routes as $key => $value) {
-                if (is_string($value['path']))
+                if (\is_string($value['path']))
                     $value['path'] = $prefix.$value['path'];
                 else
                     foreach ($value['path'] as $key => $_) {
@@ -192,7 +192,7 @@
                     $value['view'] = $middleware($value['view']);
                 }
                     
-                if (is_string($key)) $this->routes[$key] = $value;
+                if (\is_string($key)) $this->routes[$key] = $value;
                 else array_push($this->routes, $value);
             }
         }
@@ -248,7 +248,7 @@
             $separator = "$PREFIX/$static_folder_default";
             $split_uri = explode($separator, $URI);
 
-            if (count($split_uri) > 1 && $split_uri[0] == '') {
+            if (\count($split_uri) > 1 && $split_uri[0] == '') {
                 unset($split_uri[0]);
 
                 $file_name = $static_folder_default.implode($separator, $split_uri);
@@ -257,12 +257,12 @@
                     $content = file_get_contents($file_name);
 
                     $content_type = mime_content_type($file_name);
-                    $extention = explode('.', $file_name)[count(explode('.', $file_name)) - 1];
+                    $extention = explode('.', $file_name)[\count(explode('.', $file_name)) - 1];
 
-                    if ($content_type == 'text/plain' && in_array($extention, ['html', 'css', 'js']))
+                    if ($content_type == 'text/plain' && \in_array($extention, ['html', 'css', 'js']))
                         header("Content-Type:text/$extention");
                     else
-                        header('Content-Type:'.$content_type);
+                        header("Content-Type:$content_type");
 
                     echo $content;
                     exit(0);
@@ -272,7 +272,7 @@
             global $routes_names;
 
             foreach ($this->routes as $nameroute => $route) {
-                if (is_string($nameroute)) {
+                if (\is_string($nameroute)) {
                     $routes_names[$nameroute] = $route['path'];
                 }
             }
@@ -287,7 +287,7 @@
 
             $stop = false;
 
-            if (getenv('DEV') != 'false' && count($this->routes) == 0) {
+            if (getenv('DEV') != 'false' && \count($this->routes) == 0) {
                 $this->get('/', [], function() {
                     global $basehtml;
                     return str_replace(
@@ -326,24 +326,24 @@
                 'URL_PATH'    => urldecode($_SERVER["REQUEST_URI"])
             ];
 
+            // adjusting request methods
+            if ($METHOD == 'POST') {
+                if (isset($paramsreq['POST']['_method'])) {
+                    $paramsreq['POST']['METHOD'] = $METHOD = strtoupper($paramsreq['POST']['_method']);
+                    unset($paramsreq['POST']['_method']);
+                }
+            }
+
             foreach ($this->routes as $nameroute => $route) {
-                if (!is_array($route["path"]))
+                if (!\is_array($route["path"]))
                     $route["path"] = [$route["path"]];
 
                 foreach ($route["path"] as $path) {
-                    if ($variables = $this->urlComp($PREFIX.$path, $URI)) {
+                    if ($variables = $this->urlComp("$PREFIX$path", $URI)) {
                         if ($variables == 1) $variables = [];
                         $NOTFOUND = false;
-
-                        // adjusting request methods
-                        if ($METHOD == 'POST') {
-                            if (isset($_POST['_method'])) {
-                                $METHOD = strtoupper($_POST['_method']);
-                                unset($_POST['_method']);
-                            }
-                        }
                         
-                        if (!in_array($METHOD, $route["methods"])) {
+                        if (!\in_array($METHOD, $route["methods"])) {
                             continue;
                         }
 
@@ -373,7 +373,7 @@
                             
                             $response = $route["view"]($request);
 
-                            $status_code = $response->status_code?$response->status_code:(isset($route['response_code'])?$route['response_code']:200);
+                            $status_code = $response->status_code ?? ($route['response_code'] ?? 200);
 
                             self::logger($request, $status_code);
                         } catch (\Throwable $th) {
@@ -443,7 +443,7 @@
                     $_POST = json_decode($json_data, true);
                 }
             } else {
-                if (count($_POST) == 0) {
+                if (\count($_POST) == 0) {
                     $json_data = file_get_contents("php://input");
 
                     $_POST = json_decode($json_data, true);
@@ -458,7 +458,7 @@
         protected static function logger(Request $request, int $status_code) {
             $date = (new DateTime())->format('d/m/Y H:i:s.v');
             __send_file_log("{$request->address} [{$date}] {$request->protocol} {$request->method} PORT:{$request->port} {$request->url_path} {$status_code}");
-            if (count(self::$logs))
+            if (\count(self::$logs))
                __send_file_log(implode("\n", self::$logs));
         }
 
@@ -472,14 +472,16 @@
          * da url1, ela extrai valores da url2.
         */
         protected function urlComp(string $url1, string $url2): array|bool {
-            if ($url2[strlen($url2) - 1] == '/') {
-                $url2 = substr($url2, 0, strlen($url2) - 1);
+            $url2 = explode('?', $url2, 2)[0];
+            
+            if ($url2[\strlen($url2) - 1] == '/') {
+                $url2 = substr($url2, 0, \strlen($url2) - 1);
             }
-            if ($url1[strlen($url1) - 1] == '/') {
-                $url1 = substr($url1, 0, strlen($url1) - 1);
+            if ($url1[\strlen($url1) - 1] == '/') {
+                $url1 = substr($url1, 0, \strlen($url1) - 1);
             }
     
-            if (count(explode("/", $url1)) != count(explode("/", $url2))) {
+            if (\count(explode("/", $url1)) != \count(explode("/", $url2))) {
                 return false;
             }
     
@@ -499,7 +501,7 @@
                 $keys = $variables;
                 $variables = array_combine($keys, $matches);
     
-                if (count($variables) == 0) return true;
+                if (\count($variables) == 0) return true;
     
                 return $variables;
             } else {

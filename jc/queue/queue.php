@@ -2,7 +2,7 @@
 
     namespace jc\queue;
 
-    define("QUEUE_DIR", __DIR__."/../storage/queue/");
+    const QUEUE_DIR = __DIR__."/../storage/queue/";
 
     class Queue {
         public readonly string $id;

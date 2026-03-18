@@ -151,7 +151,7 @@
          * @param array $headers
          * @param array $cookies
          */
-        public function __construct(string $template, array $context = [], int $status_code = null, array $headers = [], array $cookies = []) {
+        public function __construct(string $template, array $context = [], int|null $status_code = null, array $headers = [], array $cookies = []) {
             $data = self::render($template, $context);
 
             parent::__construct($data, $status_code, $headers, $cookies);
@@ -169,25 +169,27 @@
             $lines = [];
 
             foreach (file($template) as $line) {
-                if (strlen(trim($line)) == 0);
+                if (\strlen(trim($line)) == 0);
                 else if (trim($line)[0] != "@" || substr(trim($line), 0, 2) == "@@") {
                     if (trim($line)[0] == "@")
-                        $line = substr(trim($line), 1, strlen(trim($line)));
+                        $line = substr(trim($line), 1, \strlen(trim($line)));
                     $line = str_replace("'", "\\'", $line);
                     $line = str_replace("{{", "'.", $line);
                     $line = str_replace("}}", ".'", $line);
                     $line = 'array_push($renderizado, \''.trim($line).'\');';
                 } else {
-                    $line = substr(trim($line), 1, strlen(trim($line)));
+                    $line = substr(trim($line), 1, \strlen(trim($line)));
                 }
                 array_push($lines, trim($line));
             }
 
             $renderizado = [];
 
-            $context = array_merge(self::$vars, $context);
+            $scape_string = Render::scape_string(...);
+
+            $context = [...self::$vars, ...$context];
             foreach ($context as $key => $_)
-                eval('$'.$key.' = $context["'.$key.'"];');
+                eval('$'.$key.' = $scape_string($context["'.$key.'"]);');
 
             try {
                 self::$extend = '';
@@ -222,18 +224,20 @@
             return $response;
         }
 
+        public static function scape_string($string) {
+            if (\is_string($string))
+                return str_replace(['<', '>'], ['&lt;', '&gt;'], $string);
+            return $string;
+        }
+
         public static function add_var($key, $value) {
             self::$vars[$key] = $value;
         }
     }
 
-    Render::add_var("include", function($template, $context = []) {
-        return Render::render($template, $context);
-    });
+    Render::add_var("include", Render::render(...)); # param (string $template, array $context)
 
-    Render::add_var("url", function(string $name, $params = [], $idx = 0) {
-        return url_for($name, $params, $idx);
-    });
+    Render::add_var("url", url_for(...)); # param (string $name, array $params, int #idx)
 
     Render::add_var("static", function(string $filename) {
         global $static_folder_default;

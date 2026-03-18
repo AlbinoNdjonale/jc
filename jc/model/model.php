@@ -26,9 +26,9 @@
             foreach ($ref->getProperties() as $prop) {
                 $name = $prop->getName();
 
-                if (in_array($name, self::$attrs_ignore)) continue;
+                if (\in_array($name, self::$attrs_ignore)) continue;
 
-                if (!array_key_exists($name, $data)) {
+                if (!\array_key_exists($name, $data)) {
                     $this->{$name} = null;
                     continue;
                 }
@@ -54,7 +54,7 @@
                     $this->{$name} = $converted;
                 }
 
-                if (in_array($name, static::$attrs_hash)) {
+                if (\in_array($name, static::$attrs_hash)) {
                     $this->values_hash[$name] = $this->{$name};
                 }
             }
@@ -86,17 +86,17 @@
             foreach ($ref->getProperties() as $prop) {
                 $name = $prop->getName();
 
-                if (in_array($name, self::$attrs_ignore)) continue;
+                if (\in_array($name, self::$attrs_ignore)) continue;
 
                 if ($this->{$name} === null)
                     continue;
                 
-                if (is_bool($this->{$name})) {
+                if (\is_bool($this->{$name})) {
                     $data[$name] = $this->{$name}?'1':'0';
                 } else if ($this->{$name} instanceof DateTime) {
                     $data[$name] = $this->{$name}->format('Y-m-d H:i:s');
                 } else {
-                    if ((in_array($name, static::$attrs_hash)) && ((!$this->{static::$primary_key}) || $this->{$name} !== $this->values_hash[$name])) {
+                    if ((\in_array($name, static::$attrs_hash)) && ((!$this->{static::$primary_key}) || $this->{$name} !== $this->values_hash[$name])) {
                         $data[$name] = hash_($this->{$name});
                     } else {
                         $data[$name] = $this->{$name};
@@ -108,7 +108,7 @@
                 $db->table(static::$table_name)->insert($data)->execute();
                 $this->{static::$primary_key} = $db->last_insert_id();
             } else {
-                $db->table(static::$table_name)->update($data)->where(self::cond($this->{static::$primary_key}));
+                $db->table(static::$table_name)->update($data)->where(self::cond($this->{static::$primary_key}))->execute();
             }
 
             $register = $db

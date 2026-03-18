@@ -3,7 +3,7 @@
     use jc\qbuilder\QBuilder;
     use jc\Jc;
 
-    define("DB_TEST", "tests/test.db");
+    const DB_TEST =  "tests/test.db";
 
     function dbg(): array {
         return debug_backtrace(DEBUG_BACKTRACE_PROVIDE_OBJECT);
